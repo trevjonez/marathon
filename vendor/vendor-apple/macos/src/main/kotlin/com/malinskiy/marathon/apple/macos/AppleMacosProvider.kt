@@ -18,6 +18,7 @@ import com.malinskiy.marathon.config.Configuration
 import com.malinskiy.marathon.config.vendor.VendorConfiguration
 import com.malinskiy.marathon.device.Device
 import com.malinskiy.marathon.device.DeviceProvider
+import com.malinskiy.marathon.device.preferringNotIn
 import com.malinskiy.marathon.exceptions.NoDevicesException
 import com.malinskiy.marathon.io.FileManager
 import com.malinskiy.marathon.log.MarathonLogging
@@ -111,11 +112,11 @@ class AppleMacosProvider(
         Unit
     }
 
-    override suspend fun borrow(): Device {
+    override suspend fun borrow(excludingSerials: Set<String>): Device {
         while (devices.isEmpty()) {
             delay(200)
         }
-        return devices.values.random()
+        return devices.values.preferringNotIn(excludingSerials).random()
     }
 
     private suspend fun initializeForTransport(transport: Transport) {

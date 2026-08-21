@@ -15,6 +15,7 @@ import com.malinskiy.marathon.config.Configuration
 import com.malinskiy.marathon.config.vendor.VendorConfiguration
 import com.malinskiy.marathon.coroutines.newCoroutineExceptionHandler
 import com.malinskiy.marathon.device.DeviceProvider
+import com.malinskiy.marathon.device.preferringNotIn
 import com.malinskiy.marathon.exceptions.NoDevicesException
 import com.malinskiy.marathon.log.MarathonLogging
 import com.malinskiy.marathon.time.Timer
@@ -182,13 +183,13 @@ class AdamDeviceProvider(
         }
     }
 
-    override suspend fun borrow(): AdamAndroidDevice {
+    override suspend fun borrow(excludingSerials: Set<String>): AdamAndroidDevice {
         var availableDevices = devices.filter { it.value.setupJob.isCompleted && !it.value.setupJob.isCancelled }
         while (availableDevices.isEmpty()) {
             delay(200)
             availableDevices = devices.filter { it.value.setupJob.isCompleted && !it.value.setupJob.isCancelled }
         }
-        return availableDevices.values.random().device
+        return availableDevices.values.map { it.device }.preferringNotIn(excludingSerials).random()
     }
 
     private suspend fun printAdbServerVersion(client: AndroidDebugBridgeClient) {

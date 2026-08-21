@@ -20,7 +20,7 @@ class StubDeviceProvider : DeviceProvider, CoroutineScope {
 
     override suspend fun initialize() {}
 
-    override suspend fun borrow() = borrowingDevice
+    override suspend fun borrow(excludingSerials: Set<String>) = borrowingDevice
 
     override fun subscribe(): Channel<DeviceProvider.DeviceEvent> {
         providingLogic?.let {

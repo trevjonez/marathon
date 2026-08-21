@@ -16,5 +16,11 @@ sealed class TestParserConfiguration {
     object LocalTestParserConfiguration : TestParserConfiguration()
     data class RemoteTestParserConfiguration(
         val instrumentationArgs: Map<String, String> = emptyMap(),
+        /**
+         * Total number of on-device parsing attempts. Each attempt borrows a device, preferring one not yet tried,
+         * so an unstable device that appears online but fails enumeration doesn't sink the whole run.
+         */
+        val parsingAttempts: Int = 3,
+        val parsingRetryDelayMillis: Long = 0,
     ) : TestParserConfiguration()
 }

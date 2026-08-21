@@ -26,6 +26,7 @@ import com.malinskiy.marathon.config.vendor.VendorConfiguration
 import com.malinskiy.marathon.config.vendor.apple.DeviceProvider.Static
 import com.malinskiy.marathon.device.Device
 import com.malinskiy.marathon.device.DeviceProvider
+import com.malinskiy.marathon.device.preferringNotIn
 import com.malinskiy.marathon.exceptions.NoDevicesException
 import com.malinskiy.marathon.log.MarathonLogging
 import com.malinskiy.marathon.time.Timer
@@ -291,11 +292,11 @@ class AppleSimulatorProvider(
         logger.debug { "Providing ${devices.size} devices" }
     }
 
-    override suspend fun borrow(): Device {
+    override suspend fun borrow(excludingSerials: Set<String>): Device {
         while (devices.isEmpty()) {
             delay(200)
         }
-        return devices.values.random()
+        return devices.values.preferringNotIn(excludingSerials).random()
     }
 
     private suspend fun initializeForTransport(targets: List<AppleTarget>, transport: Transport) {
