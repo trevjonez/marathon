@@ -21,7 +21,7 @@ import com.malinskiy.marathon.execution.TestParser
 import com.malinskiy.marathon.execution.TestShard
 import com.malinskiy.marathon.execution.bundle.TestBundleIdentifier
 import com.malinskiy.marathon.execution.command.parse.MarathonTestParseCommand
-import com.malinskiy.marathon.execution.withRetry
+import com.malinskiy.marathon.execution.extractRemoteTests
 import com.malinskiy.marathon.extension.toFlakinessStrategy
 import com.malinskiy.marathon.extension.toShardingStrategy
 import com.malinskiy.marathon.extension.toTestFilter
@@ -37,7 +37,6 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
 import org.koin.core.context.stopKoin
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.coroutineContext
@@ -115,14 +114,11 @@ class Marathon(
 
             parsedAllTests = when (testParser) {
                 is LocalTestParser -> testParser.extract()
-                is RemoteTestParser<*> -> {
-                    withTimeoutOrNull(configuration.deviceInitializationTimeoutMillis) {
-                        withRetry(3, 0) {
-                            val borrowedDevice = deviceProvider.borrow()
-                            testParser.extract(borrowedDevice)
-                        }
-                    } ?: throw NoDevicesException("Timed out waiting for a temporary device for remote test parsing")
-                }
+                is RemoteTestParser<*> -> extractRemoteTests(
+                    testParser,
+                    deviceProvider,
+                    configuration.deviceInitializationTimeoutMillis,
+                )
 
                 else -> {
                     throw ConfigurationException("Unknown test parser type for ${testParser::class}, should inherit from either ${LocalTestParser::class.simpleName} or ${RemoteTestParser::class.simpleName}")

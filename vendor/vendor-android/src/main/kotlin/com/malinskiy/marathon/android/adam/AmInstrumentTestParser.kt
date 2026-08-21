@@ -27,10 +27,8 @@ import com.malinskiy.marathon.config.vendor.android.TestParserConfiguration
 import com.malinskiy.marathon.device.Device
 import com.malinskiy.marathon.exceptions.TestParsingException
 import com.malinskiy.marathon.execution.RemoteTestParser
-import com.malinskiy.marathon.execution.withRetry
 import com.malinskiy.marathon.log.MarathonLogging
 import com.malinskiy.marathon.test.Test
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable.isActive
 import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
@@ -45,10 +43,14 @@ class AmInstrumentTestParser(
 ) : RemoteTestParser<AdamDeviceProvider> {
     private val logger = MarathonLogging.logger {}
     private val testAnnotationParser = TestAnnotationParser()
+    private val remoteParserConfiguration =
+        vendorConfiguration.testParserConfiguration as? TestParserConfiguration.RemoteTestParserConfiguration
+
+    override val parsingAttempts: Int = (remoteParserConfiguration?.parsingAttempts ?: 3).coerceAtLeast(1)
+    override val parsingRetryDelayMillis: Long = (remoteParserConfiguration?.parsingRetryDelayMillis ?: 0).coerceAtLeast(0)
 
     override suspend fun extract(device: Device): List<Test> {
         val testBundles = vendorConfiguration.testBundlesCompat()
-        var blockListenerArgumentOverride = false
         val messageBuilder = StringBuilder()
         messageBuilder.appendLine("Parsing bundle(s):")
         testBundles.map { it.instrumentationInfo }.forEach {
@@ -67,29 +69,21 @@ class AmInstrumentTestParser(
         val androidAppInstaller = AndroidAppInstaller(configuration)
 
         testBundles.forEach { bundle ->
-            withRetry(3, 0) {
-                try {
-                    val bundleTests = parseTests(adamDevice, configuration, androidAppInstaller, vendorConfiguration, bundle, blockListenerArgumentOverride)
-                    result.addAll(bundleTests)
-                    return@withRetry
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: TestAnnotationProducerNotFoundException) {
-                    logger.warn {
-                        """Previous parsing attempt failed for ${e.instrumentationPackage}
-                         file: ${e.testApplication}
-                       due to test parser misconfiguration: test annotation producer was not found. See https://docs.marathonlabs.io/runner/android/configure#test-parser
-                       Next parsing attempt will remove overridden test run listener.
-                       Device log:
-                       ${e.logcat}
-                    """.trimIndent()
-                    }
-                    blockListenerArgumentOverride = true
-                    throw e
-                } catch (throwable: Throwable) {
-                    logger.debug(throwable) { "Remote parsing failed. Retrying" }
-                    throw throwable
+            try {
+                result.addAll(parseTests(adamDevice, configuration, androidAppInstaller, vendorConfiguration, bundle, blockListenerArgumentOverride = false))
+            } catch (e: TestAnnotationProducerNotFoundException) {
+                logger.warn {
+                    """Previous parsing attempt failed for ${e.instrumentationPackage}
+                     file: ${e.testApplication}
+                   due to test parser misconfiguration: test annotation producer was not found. See https://docs.marathonlabs.io/runner/android/configure#test-parser
+                   Next parsing attempt will remove overridden test run listener.
+                   Device log:
+                   ${e.logcat}
+                """.trimIndent()
                 }
+                // Misconfiguration, not a flaky device: reattempt once on the same device with the listener override removed.
+                // Any other failure propagates so the orchestrator can retry on a different device.
+                result.addAll(parseTests(adamDevice, configuration, androidAppInstaller, vendorConfiguration, bundle, blockListenerArgumentOverride = true))
             }
         }
 

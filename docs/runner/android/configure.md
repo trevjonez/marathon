@@ -907,6 +907,44 @@ marathon {
 </TabItem>
 </Tabs>
 
+#### Parsing retries
+
+Remote parsing borrows a temporary device to enumerate tests. If that device is online but unusable — a common failure
+mode when devices are provided over a flaky remote or forwarded ADB connection — the parse attempt fails. Marathon
+retries the parse, preferring a *different* device than the one a previous attempt failed on when more than one is
+available, so a single bad device doesn't fail the whole run.
+
+`parsingAttempts` sets the total number of tries (default `3`). `parsingRetryDelayMillis` adds a delay between tries
+(default `0`), giving a freshly-borrowed device a moment to stabilize. The whole operation remains bounded by
+`deviceInitializationTimeoutMillis`.
+
+<Tabs>
+<TabItem value="YAML" label="Marathonfile">
+
+```yaml
+vendorConfiguration:
+  type: "Android"
+  testParserConfiguration:
+    type: "remote"
+    parsingAttempts: 3
+    parsingRetryDelayMillis: 0
+```
+
+</TabItem>
+<TabItem value="kts" label="Kotlin DSL">
+
+```kotlin
+marathon {
+  testParserConfiguration = TestParserConfiguration.RemoteTestParserConfiguration(
+    parsingAttempts = 3,
+    parsingRetryDelayMillis = 0,
+  )
+}
+```
+
+</TabItem>
+</Tabs>
+
 ### Test access configuration
 :::info
 

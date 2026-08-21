@@ -16,4 +16,15 @@ interface RemoteTestParser<in T : DeviceProvider> : TestParser {
      *      for those situations the device provider will be provided
      */
     suspend fun extract(device: Device): List<Test>
+
+    /**
+     * Total number of times the orchestrator will borrow a device and call [extract] before giving up.
+     * Each attempt prefers a device not used by a prior failed attempt.
+     */
+    val parsingAttempts: Int get() = 3
+
+    /**
+     * Delay between parsing attempts, giving a freshly-borrowed device a moment to stabilize.
+     */
+    val parsingRetryDelayMillis: Long get() = 0
 }
