@@ -21,7 +21,14 @@ import com.malinskiy.marathon.time.Timer
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.SendChannel
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.CoroutineContext
+
+/**
+ * Bound on how long [DevicePoolActor.removeDevice] waits for the old [DeviceActor]'s teardown to
+ * finish before freeing its serial for reuse, so a hung teardown can't permanently wedge the pool.
+ */
+private const val DEVICE_TERMINATION_TIMEOUT_MILLIS = 30_000L
 
 class DevicePoolActor(
     private val poolId: DevicePoolId,
@@ -136,6 +143,13 @@ class DevicePoolActor(
         logger.debug { "remove device ${device.serialNumber}" }
         val actor = devices.remove(device.serialNumber)
         actor?.safeSend(DeviceEvent.Terminate)
+        // Don't let a following AddDevice for this serial be processed until the old actor's
+        // teardown has actually finished - otherwise a reconnect racing in right behind this
+        // disconnect spins up a second DeviceActor for the same physical device while the first is
+        // still tearing down, and the new am instrument force-stops the still-alive old one mid-run.
+        (actor as? DeviceActor)?.let {
+            withTimeoutOrNull(DEVICE_TERMINATION_TIMEOUT_MILLIS) { it.onTerminated.await() }
+        }
         logger.debug { "devices.size = ${devices.size}" }
         if (noActiveDevices()) {
             //TODO check if we still have tests and timeout if nothing available
