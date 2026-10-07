@@ -521,12 +521,17 @@ class AdamAndroidDevice(
             // Defense in depth: nothing else on this device actively kills a stale/abandoned
             // `am instrument -w` process left behind by an abrupt disconnect - without this, the
             // next instrumentation's own implicit force-stop is the only thing that ever would.
-            // Best-effort: a device that's already gone can't be force-stopped either, and that's fine.
+            // Skipped (not attempted) once the device has already gone offline: issuing it anyway
+            // just races the disconnect and loses, logging a misleading ERROR for an expected outcome.
             lastInstrumentedApplicationPackage?.let { applicationPackage ->
-                safeExecuteShellCommand(
-                    "am force-stop $applicationPackage",
-                    "Failed to force-stop $applicationPackage during device teardown"
-                )
+                if (healthy) {
+                    safeExecuteShellCommand(
+                        "am force-stop $applicationPackage",
+                        "Failed to force-stop $applicationPackage during device teardown"
+                    )
+                } else {
+                    logger.debug { "Skipping force-stop of $applicationPackage during teardown: device already offline" }
+                }
             }
         }
     }
