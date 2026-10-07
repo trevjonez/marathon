@@ -99,6 +99,10 @@ export interface HtmlPoolSummary {
   duration_millis: number;
   start_time_ms: number;
   end_time_ms: number;
+  /** `end_time_ms - start_time_ms` — real elapsed time, vs. `duration_millis` which sums every test serially. */
+  wallclock_duration_millis: number;
+  /** Sum of durations of attempts that weren't the one counted in the final result. */
+  flake_overhead_millis: number;
   devices: HtmlDevice[];
 }
 
@@ -111,6 +115,10 @@ export interface HtmlIndex {
   total_ignored: number;
   total_passed: number;
   total_duration_millis: number;
+  /** `end_time_ms - start_time_ms` across every pool — real elapsed run time, vs. `total_duration_millis` which sums every test serially. */
+  wallclock_duration_millis: number;
+  /** Sum of every pool's `flake_overhead_millis`. */
+  flake_overhead_millis: number;
   average_duration_millis: number;
   max_duration_millis: number;
   min_duration_millis: number;

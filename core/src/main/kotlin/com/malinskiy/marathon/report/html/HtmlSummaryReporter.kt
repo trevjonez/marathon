@@ -326,9 +326,14 @@ class HtmlSummaryReporter(
             durationMillis = durationMillis,
             startTimeMs = start,
             endTimeMs = end,
+            wallclockDurationMillis = (end - start).coerceAtLeast(0L),
+            flakeOverheadMillis = allAttempts.flakeOverheadMillis(),
             devices = devices.map { it.toHtmlDevice() },
         )
     }
+
+    /** Sum of durations of attempts that weren't the one counted in the final result — time spent on retries that didn't stick. */
+    private fun List<HtmlAttempt>.flakeOverheadMillis(): Long = filterNot { it.final }.sumOf { it.durationMillis }
 
     private fun TestResult.toHtmlShortTest(attempts: List<HtmlAttempt>): HtmlShortTest {
         val finalAttempt = attempts.first { it.final }
@@ -356,6 +361,7 @@ class HtmlSummaryReporter(
 
     private fun Summary.toHtmlIndex(): HtmlIndex {
         val perPool = pools.associateWith { it.toHtmlPoolSummary() }
+        val htmlPools = perPool.values.toList()
         return HtmlIndex(
             generatedAtMs = System.currentTimeMillis(),
             title = configuration.name,
@@ -364,11 +370,24 @@ class HtmlSummaryReporter(
             totalPassed = pools.sumOf { it.passed.size },
             totalFlaky = perPool.values.sumOf { it.flakyCount },
             totalDuration = totalDuration(pools),
+            wallclockDuration = wallclockDuration(htmlPools),
+            flakeOverhead = htmlPools.sumOf { it.flakeOverheadMillis },
             averageDuration = averageDuration(pools),
             maxDuration = maxDuration(pools),
             minDuration = minDuration(pools),
-            pools = perPool.values.toList(),
+            pools = htmlPools,
         )
+    }
+
+    /**
+     * Earliest pool start to latest pool end — the real elapsed time of the
+     * whole run, as opposed to [totalDuration] which sums every test
+     * serially and can exceed wall-clock when pools run in parallel.
+     */
+    internal fun wallclockDuration(poolSummaries: List<HtmlPoolSummary>): Long {
+        val start = poolSummaries.map { it.startTimeMs }.filter { it > 0 }.minOrNull() ?: 0L
+        val end = poolSummaries.maxOfOrNull { it.endTimeMs } ?: 0L
+        return (end - start).coerceAtLeast(0L)
     }
 
     internal fun totalDuration(poolSummaries: List<PoolSummary>): Long =

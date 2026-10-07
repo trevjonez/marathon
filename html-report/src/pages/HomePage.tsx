@@ -31,12 +31,14 @@ export function HomePage({ data }: { data: HtmlIndex }) {
       title={data.title}
       breadcrumbs={<>Generated {formatTimestamp(data.generated_at_ms)}</>}
     >
-      <section aria-label="Run totals" className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-6">
+      <section aria-label="Run totals" className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-8">
         <StatCard label="Passed" value={data.total_passed} tone="passed" />
         <StatCard label="Failed" value={data.total_failed} tone="failed" />
         <StatCard label="Ignored" value={data.total_ignored} tone="ignored" />
         <StatCard label="Flaky" value={data.total_flaky} tone="flaky" />
         <StatCard label="Duration" value={formatDuration(data.total_duration_millis)} />
+        <StatCard label="Wall clock" value={formatDuration(data.wallclock_duration_millis)} />
+        <StatCard label="Flake overhead" value={formatDuration(data.flake_overhead_millis)} />
         <StatCard label="Devices" value={totals.distinctDevices} />
       </section>
 
@@ -122,12 +124,14 @@ function PoolCard({ pool }: { pool: HtmlPoolSummary }) {
           {pool.devices.length} device{pool.devices.length === 1 ? '' : 's'}
         </div>
       </div>
-      <div className="grid grid-cols-5 gap-2 text-sm">
+      <div className="grid grid-cols-4 gap-2 text-sm">
         <MiniStat label="Pass" value={pool.passed_count} tone="passed" />
         <MiniStat label="Fail" value={pool.failed_count} tone="failed" />
         <MiniStat label="Ignore" value={pool.ignored_count} tone="ignored" />
         <MiniStat label="Flaky" value={pool.flaky_count} tone="flaky" />
         <MiniStat label="Duration" value={formatDuration(pool.duration_millis)} />
+        <MiniStat label="Wall clock" value={formatDuration(pool.wallclock_duration_millis)} />
+        <MiniStat label="Flake overhead" value={formatDuration(pool.flake_overhead_millis)} />
       </div>
     </a>
   );
