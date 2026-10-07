@@ -102,6 +102,14 @@ class AdamAndroidDevice(
 
     val portForwardingRules = mutableMapOf<String, ReversePortForwardingRule>()
 
+    /**
+     * Application package of the most recently dispatched `am instrument` run on this device, used
+     * by [dispose] to force-stop a stale instrumentation on teardown. Set by [AndroidDeviceTestRunner]
+     * right before it hands the TestRunnerRequest to [executeTestRequest].
+     */
+    @Volatile
+    var lastInstrumentedApplicationPackage: String? = null
+
     override val serialNumber: String
         get() = when {
             booted -> realSerialNumber
@@ -509,6 +517,16 @@ class AdamAndroidDevice(
         runBlocking {
             portForwardingRules.forEach { (_, rule) ->
                 client.execute(RemoveReversePortForwardRequest(rule.localSpec), adbSerial)
+            }
+            // Defense in depth: nothing else on this device actively kills a stale/abandoned
+            // `am instrument -w` process left behind by an abrupt disconnect - without this, the
+            // next instrumentation's own implicit force-stop is the only thing that ever would.
+            // Best-effort: a device that's already gone can't be force-stopped either, and that's fine.
+            lastInstrumentedApplicationPackage?.let { applicationPackage ->
+                safeExecuteShellCommand(
+                    "am force-stop $applicationPackage",
+                    "Failed to force-stop $applicationPackage during device teardown"
+                )
             }
         }
     }
