@@ -59,6 +59,7 @@ class AndroidDeviceTestRunner(private val device: AdamAndroidDevice, private val
             bundleIdentifier.identify(it).instrumentationInfo
         }
         infoToTestMap.keys.forEach { info ->
+            device.lastInstrumentedApplicationPackage = info.applicationPackage
             val coverageFilename = "coverage-${testBatch.id}.ec"
             val coverageFile = "/data/data/${info.applicationPackage}/coverage/$coverageFilename"
             val runnerRequest = prepareTestRunnerRequest(configuration, androidConfiguration, info, testBatch, coverageFile)
