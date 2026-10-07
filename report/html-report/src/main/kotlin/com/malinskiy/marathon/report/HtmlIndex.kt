@@ -11,6 +11,10 @@ data class HtmlIndex(
     @SerializedName("total_ignored") val totalIgnored: Int,
     @SerializedName("total_passed") val totalPassed: Int,
     @SerializedName("total_duration_millis") val totalDuration: Long,
+    /** `end_time_ms - start_time_ms` across every pool — real elapsed run time, as opposed to [totalDuration] which sums every test serially. */
+    @SerializedName("wallclock_duration_millis") val wallclockDuration: Long,
+    /** Sum of [HtmlPoolSummary.flakeOverheadMillis] across every pool. */
+    @SerializedName("flake_overhead_millis") val flakeOverhead: Long,
     @SerializedName("average_duration_millis") val averageDuration: Long,
     @SerializedName("max_duration_millis") val maxDuration: Long,
     @SerializedName("min_duration_millis") val minDuration: Long,

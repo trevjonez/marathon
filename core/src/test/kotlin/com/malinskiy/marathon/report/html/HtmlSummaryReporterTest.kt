@@ -199,6 +199,55 @@ class HtmlSummaryReporterTest {
     }
 
     @Test
+    fun `wallclock_duration_millis is earliest-start to latest-end, distinct from the serial-sum duration`() {
+        val android = androidDevice("emulator-5554")
+        val ios = iosDevice("SIM-1234")
+        val report = ExecutionReport(
+            deviceConnectedEvents = listOf(
+                DeviceConnectedEvent(Instant.now(), DevicePoolId("myPool"), android),
+                DeviceConnectedEvent(Instant.now(), DevicePoolId("myPool"), ios),
+            ),
+            deviceDisconnectedEvents = emptyList(),
+            devicePreparingEvents = emptyList(),
+            deviceProviderPreparingEvent = emptyList(),
+            testEvents = listOf(
+                // Two tests run in parallel on different devices: wall-clock
+                // for the pool is 1000..1100, but summed duration is 100+100=200.
+                testEvent(android, "a", TestStatus.PASSED, startTime = 1000, endTime = 1100),
+                testEvent(ios, "b", TestStatus.PASSED, startTime = 1000, endTime = 1100),
+            ),
+        )
+        val json = runReporter(report)
+        val pool = json.getAsJsonArray("pools").first().asJsonObject
+        pool.get("duration_millis").asLong shouldBeEqualTo 200L
+        pool.get("wallclock_duration_millis").asLong shouldBeEqualTo 100L
+        json.get("total_duration_millis").asLong shouldBeEqualTo 200L
+        json.get("wallclock_duration_millis").asLong shouldBeEqualTo 100L
+    }
+
+    @Test
+    fun `flake_overhead_millis sums non-final attempt durations, rolled up to the index`() {
+        val device = androidDevice()
+        val report = ExecutionReport(
+            deviceConnectedEvents = listOf(DeviceConnectedEvent(Instant.now(), DevicePoolId("myPool"), device)),
+            deviceDisconnectedEvents = emptyList(),
+            devicePreparingEvents = emptyList(),
+            deviceProviderPreparingEvent = emptyList(),
+            testEvents = listOf(
+                // Two wasted (non-final) attempts of 50ms + 70ms, then a 40ms final pass.
+                testEvent(device, "flaky", TestStatus.FAILURE, final = false, startTime = 0, endTime = 50),
+                testEvent(device, "flaky", TestStatus.FAILURE, final = false, startTime = 50, endTime = 120),
+                testEvent(device, "flaky", TestStatus.PASSED, final = true, startTime = 120, endTime = 160),
+                testEvent(device, "steady", TestStatus.PASSED, final = true, startTime = 160, endTime = 200),
+            ),
+        )
+        val json = runReporter(report)
+        val pool = json.getAsJsonArray("pools").first().asJsonObject
+        pool.get("flake_overhead_millis").asLong shouldBeEqualTo 120L
+        json.get("flake_overhead_millis").asLong shouldBeEqualTo 120L
+    }
+
+    @Test
     fun `attempts across different devices surface distinct_devices`() {
         val android = androidDevice("emulator-5554")
         val ios = iosDevice("SIM-1234")
