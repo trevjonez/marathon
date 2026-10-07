@@ -13,6 +13,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.amshove.kluent.shouldBeEqualTo
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
@@ -59,6 +60,27 @@ class DeviceActorTest {
 
             message = poolChannel.receive()
             message.shouldBeEqualTo(DevicePoolMessage.FromDevice.ReturnTestBatch(device, testBatch, "Device serial-1 terminated"))
+        }
+    }
+
+    @Test
+    fun `onTerminated completes only once teardown has actually finished`() {
+        val devicePoolId = DevicePoolId("test")
+        val device = StubDevice(prepareTimeMillis = 10L, testTimeMillis = 10L)
+        val actor = DeviceActor(
+            devicePoolId, poolChannel, defaultConfiguration, device, job, Dispatchers.Unconfined
+        )
+
+        runBlocking {
+            actor.send(DeviceEvent.Initialize)
+            poolChannel.receive() // IsReady
+
+            actor.onTerminated.isCompleted shouldBeEqualTo false
+
+            actor.send(DeviceEvent.Terminate)
+            withTimeout(1000) { actor.onTerminated.await() }
+
+            actor.onTerminated.isCompleted shouldBeEqualTo true
         }
     }
 

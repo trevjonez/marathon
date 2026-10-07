@@ -16,6 +16,7 @@ import com.malinskiy.marathon.test.TestBatch
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CompletionHandler
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
@@ -158,6 +159,16 @@ class DeviceActor(
 
     private var initializeJob: Job? = null
     private var executeJob: Job? = null
+    private val terminationSignal = CompletableDeferred<Unit>()
+
+    /**
+     * Completes once [terminate]'s teardown coroutine has actually finished (jobs cancelled and
+     * joined, channel closed) - not merely once a Terminate event has been accepted. DevicePoolActor
+     * awaits this before freeing the device's serial for a new DeviceActor, so a reconnect racing in
+     * right behind a disconnect can't spin up a second actor for the same physical device while the
+     * first is still tearing down.
+     */
+    val onTerminated: Deferred<Unit> get() = terminationSignal
 
     private fun initialize() {
         logger.debug { "initialize ${device.serialNumber}" }
@@ -224,6 +235,7 @@ class DeviceActor(
             initializeJob?.cancelAndJoin()
             executeJob?.cancelAndJoin()
             close()
+            terminationSignal.complete(Unit)
         }
     }
 }
