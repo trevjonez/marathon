@@ -13,7 +13,7 @@ import com.malinskiy.adam.request.testrunner.TestRunStartedEvent
 import com.malinskiy.adam.request.testrunner.TestRunStopped
 import com.malinskiy.adam.request.testrunner.TestRunnerRequest
 import com.malinskiy.adam.request.testrunner.TestStarted
-import com.malinskiy.marathon.android.AndroidAppInstaller
+import com.malinskiy.marathon.analytics.internal.pub.Track
 import com.malinskiy.marathon.android.AndroidTestBundleIdentifier
 import com.malinskiy.marathon.android.adam.event.TestAnnotationParser
 import com.malinskiy.marathon.android.adam.log.LogcatAccumulatingListener
@@ -39,7 +39,8 @@ private const val TEST_ANNOTATION_PRODUCER = "com.malinskiy.adam.junit4.android.
 class AmInstrumentTestParser(
     private val configuration: Configuration,
     private val testBundleIdentifier: AndroidTestBundleIdentifier,
-    private val vendorConfiguration: VendorConfiguration.AndroidConfiguration
+    private val vendorConfiguration: VendorConfiguration.AndroidConfiguration,
+    private val track: Track,
 ) : RemoteTestParser<AdamDeviceProvider> {
     private val logger = MarathonLogging.logger {}
     private val testAnnotationParser = TestAnnotationParser()
@@ -66,24 +67,28 @@ class AmInstrumentTestParser(
         val result = mutableSetOf<Test>()
         val adamDevice =
             device as? AdamAndroidDevice ?: throw ConfigurationException("Unexpected device type for remote test parsing")
-        val androidAppInstaller = AndroidAppInstaller(configuration)
 
-        testBundles.forEach { bundle ->
-            try {
-                result.addAll(parseTests(adamDevice, configuration, androidAppInstaller, vendorConfiguration, bundle, blockListenerArgumentOverride = false))
-            } catch (e: TestAnnotationProducerNotFoundException) {
-                logger.warn {
-                    """Previous parsing attempt failed for ${e.instrumentationPackage}
-                     file: ${e.testApplication}
-                   due to test parser misconfiguration: test annotation producer was not found. See https://docs.marathonlabs.io/runner/android/configure#test-parser
-                   Next parsing attempt will remove overridden test run listener.
-                   Device log:
-                   ${e.logcat}
-                """.trimIndent()
+        // Shared with the device's own preparation, so the scheduler doesn't reinstall on the parsing device
+        adamDevice.ensureInstalled(configuration)
+
+        track.trackTestParsing(adamDevice) {
+            testBundles.forEach { bundle ->
+                try {
+                    result.addAll(parseTests(adamDevice, configuration, vendorConfiguration, bundle, blockListenerArgumentOverride = false))
+                } catch (e: TestAnnotationProducerNotFoundException) {
+                    logger.warn {
+                        """Previous parsing attempt failed for ${e.instrumentationPackage}
+                         file: ${e.testApplication}
+                       due to test parser misconfiguration: test annotation producer was not found. See https://docs.marathonlabs.io/runner/android/configure#test-parser
+                       Next parsing attempt will remove overridden test run listener.
+                       Device log:
+                       ${e.logcat}
+                    """.trimIndent()
+                    }
+                    // Misconfiguration, not a flaky device: reattempt once on the same device with the listener override removed.
+                    // Any other failure propagates so the orchestrator can retry on a different device.
+                    result.addAll(parseTests(adamDevice, configuration, vendorConfiguration, bundle, blockListenerArgumentOverride = true))
                 }
-                // Misconfiguration, not a flaky device: reattempt once on the same device with the listener override removed.
-                // Any other failure propagates so the orchestrator can retry on a different device.
-                result.addAll(parseTests(adamDevice, configuration, androidAppInstaller, vendorConfiguration, bundle, blockListenerArgumentOverride = true))
             }
         }
 
@@ -93,13 +98,10 @@ class AmInstrumentTestParser(
     private suspend fun parseTests(
         device: AdamAndroidDevice,
         configuration: Configuration,
-        installer: AndroidAppInstaller,
         vendorConfiguration: VendorConfiguration.AndroidConfiguration,
         bundle: AndroidTestBundle,
         blockListenerArgumentOverride: Boolean,
     ): MutableSet<Test> {
-        installer.preparePartialInstallation(device, bundle)
-
         val listener = LogcatAccumulatingListener(device)
         listener.setup()
 

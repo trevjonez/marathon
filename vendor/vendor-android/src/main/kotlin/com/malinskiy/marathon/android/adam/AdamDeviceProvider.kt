@@ -19,6 +19,7 @@ import com.malinskiy.marathon.device.preferringNotIn
 import com.malinskiy.marathon.exceptions.NoDevicesException
 import com.malinskiy.marathon.log.MarathonLogging
 import com.malinskiy.marathon.time.Timer
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -157,6 +158,7 @@ class AdamDeviceProvider(
                                     val job = launch(setupSupervisor) {
                                         device.setup()
                                         channel.send(DeviceProvider.DeviceEvent.DeviceConnected(device))
+                                        preinstall(device)
                                     }
                                     devices[serial] = ProvidedDevice(device, job)
                                 }
@@ -190,6 +192,25 @@ class AdamDeviceProvider(
             availableDevices = devices.filter { it.value.setupJob.isCompleted && !it.value.setupJob.isCancelled }
         }
         return availableDevices.values.map { it.device }.preferringNotIn(excludingSerials).random()
+    }
+
+    /**
+     * Installs as soon as the device is up instead of waiting for the scheduler's first [AdamAndroidDevice.prepare]:
+     * with a remote test parser the scheduler only starts once parsing finishes, so every other device would sit idle
+     * through the parse and only then start installing.
+     *
+     * Runs inside the setup job, so [borrow] only hands out devices that are already installed, and a disconnect
+     * cancels an in-flight install. Failures are left for [AdamAndroidDevice.prepare] or the parser to retry, so they
+     * keep their existing retry and error handling.
+     */
+    private suspend fun preinstall(device: AdamAndroidDevice) {
+        try {
+            device.ensureInstalled(configuration)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            logger.warn(e) { "Eager installation failed on ${device.serialNumber}; it will be retried when the device is prepared" }
+        }
     }
 
     private suspend fun printAdbServerVersion(client: AndroidDebugBridgeClient) {

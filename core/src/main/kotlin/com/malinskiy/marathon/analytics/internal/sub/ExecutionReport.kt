@@ -15,7 +15,8 @@ data class ExecutionReport(
     val deviceDisconnectedEvents: List<DeviceDisconnectedEvent>,
     val devicePreparingEvents: List<DevicePreparingEvent>,
     val deviceProviderPreparingEvent: List<DeviceProviderPreparingEvent>,
-    val testEvents: List<TestEvent>
+    val testEvents: List<TestEvent>,
+    val testParsingEvents: List<TestParsingEvent> = emptyList(),
 ) {
     val summary: Summary by lazy {
         val pools = deviceConnectedEvents.map { it.poolId }.distinct()
@@ -113,6 +114,12 @@ data class DevicePreparingEvent(
 ) : Event()
 
 data class DeviceProviderPreparingEvent(
+    val start: Instant,
+    val finish: Instant,
+    val serialNumber: String
+) : Event()
+
+data class TestParsingEvent(
     val start: Instant,
     val finish: Instant,
     val serialNumber: String

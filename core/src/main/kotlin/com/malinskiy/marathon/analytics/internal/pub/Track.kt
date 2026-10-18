@@ -23,6 +23,10 @@ class Track : Tracker {
         delegates.forEach { it.devicePreparing(serialNumber, startTime, finishTime) }
     }
 
+    override fun testParsing(serialNumber: String, startTime: Instant, finishTime: Instant) {
+        delegates.forEach { it.testParsing(serialNumber, startTime, finishTime) }
+    }
+
     override fun deviceConnected(poolId: DevicePoolId, device: DeviceInfo) {
         delegates.forEach { it.deviceConnected(poolId, device) }
     }
@@ -41,6 +45,18 @@ class Track : Tracker {
         val finish = Instant.now()
 
         devicePreparing(device.serialNumber, start, finish)
+    }
+
+    /**
+     * Records the attempt even when [block] throws, so failed parsing attempts still show where the time went
+     */
+    suspend fun <T> trackTestParsing(device: Device, block: suspend () -> T): T {
+        val start = Instant.now()
+        try {
+            return block.invoke()
+        } finally {
+            testParsing(device.serialNumber, start, Instant.now())
+        }
     }
 
     suspend fun trackProviderDevicePreparing(device: Device, block: suspend () -> Unit) {

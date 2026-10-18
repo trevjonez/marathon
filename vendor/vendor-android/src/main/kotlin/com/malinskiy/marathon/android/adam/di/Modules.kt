@@ -22,7 +22,8 @@ val adamModule = module {
             testParserConfiguration != null && testParserConfiguration is TestParserConfiguration.RemoteTestParserConfiguration -> AmInstrumentTestParser(
                 get(),
                 get(),
-                get()
+                get(),
+                get(),
             )
 
             else -> DexTestParser(get(), get())
