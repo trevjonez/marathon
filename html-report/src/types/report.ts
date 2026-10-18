@@ -61,6 +61,15 @@ export interface HtmlShortTest {
   has_screenshot: boolean;
   /** True when any attempt of this test produced a linked video. */
   has_video: boolean;
+  /** Annotation tags (`outputConfiguration.tags`); absent in reports from before tags shipped. */
+  tags?: HtmlTag[];
+}
+
+/** A test annotation surfaced as a tag. `attributes` (the annotation's values) is only on the test page payload. */
+export interface HtmlTag {
+  group: string;
+  value: string;
+  attributes?: Record<string, string>;
 }
 
 export interface HtmlFullTest {
@@ -87,6 +96,7 @@ export interface HtmlFullTest {
   attempt_count: number;
   is_flaky: boolean;
   distinct_devices: HtmlDevice[];
+  tags?: HtmlTag[];
 }
 
 export interface HtmlPoolSummary {

@@ -5,6 +5,7 @@ import { DeviceChip } from '../components/DeviceChip';
 import { DeviceDetails } from '../components/DeviceDetails';
 import { Lightbox } from '../components/Lightbox';
 import { FlakyBadge, StatusBadge, toneClasses } from '../components/StatusBadge';
+import { TagChip } from '../components/TagChip';
 import type { HtmlAttempt, HtmlFullTest } from '../types/report';
 import { paths } from '../util/paths';
 import { formatDuration, formatTimestamp } from '../util/time';
@@ -44,6 +45,13 @@ function Header({ data }: { data: HtmlFullTest }) {
             <span className="mx-1 opacity-60">·</span>
             {data.package_name}
           </div>
+          {data.tags && data.tags.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5" aria-label="Tags">
+              {data.tags.map((tag) => (
+                <TagChip key={`${tag.group}:${tag.value}`} tag={tag} detailed />
+              ))}
+            </div>
+          )}
         </div>
         <div className="text-right text-sm">
           <div className="tabular-nums">{formatDuration(data.duration_millis)}</div>

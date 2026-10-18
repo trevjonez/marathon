@@ -7,6 +7,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
 import com.fasterxml.jackson.module.kotlin.KotlinFeature
 import com.fasterxml.jackson.module.kotlin.KotlinModule
 import com.malinskiy.marathon.config.AnalyticsConfiguration
+import com.malinskiy.marathon.config.TagRule
 import com.malinskiy.marathon.config.ScreenRecordingPolicy
 import com.malinskiy.marathon.config.TestFilterConfiguration
 import com.malinskiy.marathon.config.analytics.Defaults
@@ -456,5 +457,28 @@ class ConfigurationFactoryTest {
 
         configuration.analyticsTracking shouldBeEqualTo false
         configuration.bugsnagReporting shouldBeEqualTo false
+    }
+
+    @Test
+    fun `on configuration with report tags`() {
+        val file = File(ConfigurationFactoryTest::class.java.getResource("/fixture/config/sample_13.yaml").file)
+        val configuration = parser.parse(file)
+
+        configuration.outputConfiguration.tags shouldBeEqualTo listOf(
+            TagRule(group = "team", regex = "com\\.aetna\\.teams\\..*"),
+            TagRule(group = "env", regex = "com\\.aetna\\.test\\.(Mock|QA\\d?|Prod)Test"),
+        )
+    }
+
+    @Test
+    fun `on configuration without report tags defaults to none`() {
+        val file = File(ConfigurationFactoryTest::class.java.getResource("/fixture/config/sample_12.yaml").file)
+        parser.parse(file).outputConfiguration.tags shouldBeEqualTo emptyList()
+    }
+
+    @Test
+    fun `on configuration with an invalid tag regex fails at load`() {
+        val file = File(ConfigurationFactoryTest::class.java.getResource("/fixture/config/sample_14.yaml").file)
+        assertThrows<ConfigurationException> { parser.parse(file) }
     }
 }

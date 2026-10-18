@@ -24,10 +24,12 @@ import com.malinskiy.marathon.report.HtmlIndex
 import com.malinskiy.marathon.report.HtmlLogAttempt
 import com.malinskiy.marathon.report.HtmlPoolSummary
 import com.malinskiy.marathon.report.HtmlShortTest
+import com.malinskiy.marathon.report.HtmlTag
 import com.malinskiy.marathon.report.HtmlTestLogDetails
 import com.malinskiy.marathon.report.Reporter
 import com.malinskiy.marathon.report.Status
 import com.malinskiy.marathon.report.timeline.TimelineSummaryProvider
+import com.malinskiy.marathon.test.Test
 import com.malinskiy.marathon.test.toClassName
 import java.io.File
 import java.io.InputStream
@@ -285,6 +287,7 @@ class HtmlSummaryReporter(
             attemptCount = attempts.size,
             isFlaky = attempts.isFlakySequence(),
             distinctDevices = distinctDevices,
+            tags = test.toHtmlTags(withAttributes = true),
         )
     }
 
@@ -356,7 +359,28 @@ class HtmlSummaryReporter(
             osVersions = attempts.map { it.device.osVersion }.distinct(),
             hasScreenshot = attempts.any { it.screenshot.isNotEmpty() },
             hasVideo = attempts.any { it.videos.isNotEmpty() },
+            tags = test.toHtmlTags(withAttributes = false),
         )
+    }
+
+    /**
+     * The same annotation can arrive twice (on the class and the method, with different values), so tags are
+     * de-duplicated on group and value, keeping the first one's attributes.
+     */
+    private fun Test.toHtmlTags(withAttributes: Boolean): List<HtmlTag> {
+        val rules = configuration.outputConfiguration.tags
+        if (rules.isEmpty()) return emptyList()
+        return metaProperties.mapNotNull { annotation ->
+            rules.firstNotNullOfOrNull { rule -> rule.valueFor(annotation.name)?.let { rule.group to it } }
+                ?.let { (group, value) ->
+                    val attributes = if (withAttributes) {
+                        annotation.values
+                            .mapNotNull { (key, raw) -> raw?.toString()?.takeIf { it.isNotBlank() }?.let { key to it } }
+                            .toMap()
+                    } else null
+                    HtmlTag(group, value, attributes)
+                }
+        }.distinctBy { it.group to it.value }
     }
 
     private fun Summary.toHtmlIndex(): HtmlIndex {

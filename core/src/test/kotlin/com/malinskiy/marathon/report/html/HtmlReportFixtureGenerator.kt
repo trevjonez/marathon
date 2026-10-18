@@ -8,6 +8,9 @@ import com.malinskiy.marathon.analytics.internal.sub.ExecutionReport
 import com.malinskiy.marathon.analytics.internal.sub.TestEvent
 import com.malinskiy.marathon.config.AnalyticsConfiguration
 import com.malinskiy.marathon.config.Configuration
+import com.malinskiy.marathon.test.MetaProperty
+import com.malinskiy.marathon.config.TagRule
+import com.malinskiy.marathon.config.OutputConfiguration
 import com.malinskiy.marathon.config.vendor.VendorConfiguration
 import com.malinskiy.marathon.device.DeviceFeature
 import com.malinskiy.marathon.device.DeviceInfo
@@ -85,6 +88,12 @@ class HtmlReportFixtureGenerator {
             vendorConfiguration = VendorConfiguration.StubVendorConfiguration
             analyticsConfiguration = AnalyticsConfiguration.DisabledAnalytics
             analyticsTracking = false
+            outputConfiguration = OutputConfiguration(
+                tags = listOf(
+                    TagRule("team", "com\\.example\\.teams\\..*"),
+                    TagRule("env", "com\\.example\\.env\\.(\\w+)Test"),
+                )
+            )
         }.build()
         val gson = Gson()
         val fileManager = FileManager(0, 255, outputDir)
@@ -353,7 +362,7 @@ class HtmlReportFixtureGenerator {
                 val method = "${METHODS.random(rng)}-$testIdx"
                 val pkg = classFqn.substringBeforeLast('.', missingDelimiterValue = "com.example")
                 val simpleClass = classFqn.substringAfterLast('.')
-                val marathonTest = MarathonTest(pkg, simpleClass, method, emptyList())
+                val marathonTest = MarathonTest(pkg, simpleClass, method, fixtureAnnotations(rng))
 
                 val nominal = weightedDurationMs(rng)
                 val finalStatus = weightedStatus(rng)
@@ -591,6 +600,18 @@ class HtmlReportFixtureGenerator {
             appleDevice("SIM-SE-SIM", "17.1", "Simulator iPhone SE"),
             appleDevice("SIM-IPAD-PRO-129-SIM", "17.4", "Simulator iPad Pro 12.9\"", tablet = true),
         )
+
+        private val TEAMS = listOf("Redwood", "Moonlight", "Summit", "Cobalt")
+        private val ENVIRONMENTS = listOf("Mock", "QA", "Prod")
+
+        /** Mostly one team and one environment, some tests with a second team, a few untagged. */
+        private fun fixtureAnnotations(rng: Random): List<MetaProperty> {
+            if (rng.nextFloat() < 0.1f) return listOf(MetaProperty("org.junit.Test"))
+            val teams = TEAMS.shuffled(rng).take(if (rng.nextFloat() < 0.25f) 2 else 1)
+            return teams.map {
+                MetaProperty("com.example.teams.$it", mapOf("description" to "$it owned", "ticket" to "${it.take(2).uppercase()}-${rng.nextInt(100)}"))
+            } + MetaProperty("com.example.env.${ENVIRONMENTS.random(rng)}Test") + MetaProperty("org.junit.Test")
+        }
 
         private val TEST_CLASSES = listOf(
             "com.example.app.auth.LoginActivityTest",
