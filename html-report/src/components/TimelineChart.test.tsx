@@ -346,6 +346,30 @@ describe('TimelineChart test parsing', () => {
     expect(haloed(container)).toHaveLength(0);
   });
 
+  it('links to the device log when the report has one, and marks a failed attempt', () => {
+    const data = timeline([
+      {
+        serial: 'parser',
+        data: [
+          { ...deviceBar('TEST_PARSING', 0), logHref: 'test-parsing/parser.html', failed: true },
+          { ...deviceBar('TEST_PARSING', 10_000), logHref: 'test-parsing/parser.html', failed: false },
+        ],
+      },
+    ]);
+    const { container } = render(<TimelineChart data={data} />);
+    const [failed, ok] = parsingBars(container);
+    expect(failed!.tagName).toBe('A');
+    expect(failed!.getAttribute('href')).toBe('test-parsing/parser.html');
+    expect(failed!.classList.contains('bar-failed')).toBe(true);
+    expect(failed!.getAttribute('aria-label')).toContain('(failed)');
+    expect(ok!.classList.contains('bar-failed')).toBe(false);
+
+    fireEvent.mouseEnter(failed!, { clientX: 1, clientY: 1 });
+    const text = document.querySelector('.timeline-tooltip')?.textContent ?? '';
+    expect(text).toContain('failed');
+    expect(text).toContain('click to open the device log');
+  });
+
   it('tooltip names it and gives its duration', () => {
     const { container } = render(<TimelineChart data={parsingFixture()} />);
     fireEvent.mouseEnter(parsingBars(container)[0]!, { clientX: 1, clientY: 1 });

@@ -50,6 +50,8 @@ class TimelineSummaryProvider {
                 endDate = it.finish.toEpochMilli(),
                 expectedValue = 0.0,
                 variance = 0.0,
+                logHref = it.logFile?.let(::testParsingLogHref),
+                failed = it.failed,
             )
         }
 
@@ -200,3 +202,6 @@ class TimelineSummaryProvider {
         TestStatus.ASSUMPTION_FAILURE -> MetricType.ASSUMPTION_FAILURE
     }
 }
+
+/** Where [com.malinskiy.marathon.report.html.HtmlSummaryReporter] renders a test parsing log, relative to the report root. */
+fun testParsingLogHref(logFile: java.io.File): String = "test-parsing/${logFile.nameWithoutExtension}.html"

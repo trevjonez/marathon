@@ -463,6 +463,20 @@ function TimelineRow({
           top: (ROW_HEIGHT - BAR_HEIGHT) / 2,
           height: BAR_HEIGHT,
         } as const;
+        const failedClass = point.failed ? ' bar-failed' : '';
+        if (point.logHref) {
+          // Remote test parsing: opens the device log captured for the attempt
+          return (
+            <a
+              key={i}
+              href={point.logHref}
+              className={`bar bar-${point.metricType} bar-clickable${failedClass}`}
+              style={barStyle}
+              aria-label={`${point.testName}${point.failed ? ' (failed)' : ''} — open device log`}
+              {...commonHandlers}
+            />
+          );
+        }
         if (clickable) {
           return (
             <button
@@ -479,7 +493,7 @@ function TimelineRow({
         return (
           <div
             key={i}
-            className={`bar bar-${point.metricType}${attemptClass}`}
+            className={`bar bar-${point.metricType}${attemptClass}${failedClass}`}
             style={barStyle}
             aria-hidden
             {...commonHandlers}
@@ -546,6 +560,8 @@ function tooltipHtml(
     deviceLine,
     data.batchId ? `<div>batch: ${escapeHtml(data.batchId)}</div>` : '',
     data.attemptIndex !== undefined ? `<div>attempt: ${data.attemptIndex + 1}</div>` : '',
+    data.failed ? '<div><strong>failed</strong></div>' : '',
+    data.logHref ? '<div>click to open the device log</div>' : '',
   ]
     .filter(Boolean)
     .join('');

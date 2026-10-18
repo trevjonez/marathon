@@ -57,12 +57,18 @@ export function LogsPage({ data }: { data: HtmlTestLogDetails }) {
     <AppShell
       title={`${data.display_name} — logs`}
       breadcrumbs={
-        <>
-          <a href={paths.fromLogsToIndex}>Pools list</a> /{' '}
-          <a href={paths.fromLogsToPool(data.pool_id)}>Pool {data.pool_id}</a> /{' '}
-          <a href={paths.fromLogsToTest(pathToTestFilenameGuess(data))}>{data.display_name}</a> /
-          Logs
-        </>
+        data.kind === 'test-parsing' ? (
+          <>
+            <a href={paths.fromParsingLogToIndex}>Pools list</a> / {data.display_name} / Logs
+          </>
+        ) : (
+          <>
+            <a href={paths.fromLogsToIndex}>Pools list</a> /{' '}
+            <a href={paths.fromLogsToPool(data.pool_id)}>Pool {data.pool_id}</a> /{' '}
+            <a href={paths.fromLogsToTest(pathToTestFilenameGuess(data))}>{data.display_name}</a> /
+            Logs
+          </>
+        )
       }
     >
       <AttemptPicker
