@@ -44,8 +44,8 @@ class ParseLogcatCaptureTest {
         lines.size shouldBeEqualTo 3
         lines[0] shouldContain "===== "
         lines[0] shouldContain "attempt one"
-        lines[1] shouldBeEqualTo "10-18 02:57:54.000: D/TestRunner(42): started"
-        lines[2] shouldBeEqualTo "10-18 02:57:54.000: E/AndroidRuntime(42): FATAL EXCEPTION: main"
+        lines[1] shouldBeEqualTo "10-18 02:57:54.000 42-43/app D/TestRunner: started"
+        lines[2] shouldBeEqualTo "10-18 02:57:54.000 42-43/app E/AndroidRuntime: FATAL EXCEPTION: main"
         producer.listeners.size shouldBeEqualTo 0
     }
 
@@ -57,7 +57,7 @@ class ParseLogcatCaptureTest {
         producer.emit(Log.LogLevel.INFO, "B", "ignored")
         producer.emit(Log.LogLevel.ERROR, "C", "two")
         producer.emit(Log.LogLevel.ASSERT, "D", "three")
-        capture.problems().map { it.substringAfter(": ") } shouldBeEqualTo listOf("E/C(42): two", "A/D(42): three")
+        capture.problems().map { it.substringAfter("/app ") } shouldBeEqualTo listOf("E/C: two", "A/D: three")
         capture.close()
     }
 

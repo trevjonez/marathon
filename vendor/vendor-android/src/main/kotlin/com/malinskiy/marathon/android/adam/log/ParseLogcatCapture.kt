@@ -28,7 +28,8 @@ class ParseLogcatCapture(
     }
 
     override suspend fun onMessage(message: LogCatMessage) {
-        val line = "$message"
+        // Same shape as test logs (AdamAndroidDevice.onLogcat), which the report's logcat viewer parses
+        val line = "${message.timestamp} ${message.pid}-${message.tid}/${message.appName} ${message.logLevel.priorityLetter}/${message.tag}: ${message.message}"
         synchronized(this) {
             if (closed) return
             writer.appendLine(line)
