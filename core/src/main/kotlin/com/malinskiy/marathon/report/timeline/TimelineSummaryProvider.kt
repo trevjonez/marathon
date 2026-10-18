@@ -20,7 +20,9 @@ class TimelineSummaryProvider {
             convertToData(it, eventAttemptIndex[it] ?: 0, finalDeviceByTestKey)
         }
 
-        val preparingData = report.devicePreparingEvents.map {
+        // Phases break preparation into its steps, so the coarse prepare bar would only be drawn on top of them
+        val preparingEvents = if (report.devicePhaseEvents.isEmpty()) report.devicePreparingEvents else emptyList()
+        val preparingData = preparingEvents.map {
             Data(
                 testName = MetricType.DEVICE_PREPARE.name,
                 metricType = MetricType.DEVICE_PREPARE,
@@ -55,7 +57,21 @@ class TimelineSummaryProvider {
             )
         }
 
-        return (testData + preparingData + providerData + parsingData).sortedBy { it.startDate }
+        val phaseData = report.devicePhaseEvents.map {
+            Data(
+                testName = it.label,
+                metricType = MetricType.DEVICE_PHASE,
+                startDate = it.start.toEpochMilli(),
+                endDate = it.finish.toEpochMilli(),
+                expectedValue = 0.0,
+                variance = 0.0,
+                failed = it.failed,
+                phase = it.phase.name,
+                betweenTests = it.phase.betweenTests,
+            )
+        }
+
+        return (testData + preparingData + providerData + parsingData + phaseData).sortedBy { it.startDate }
     }
 
     private fun convertToData(
@@ -95,9 +111,11 @@ class TimelineSummaryProvider {
         return ExecutionStats(calculateIdle(data), calculateAverageExecutionTime(data))
     }
 
+    /** Tests only: device bars (prepare, parsing, phases) would drag the average toward their many short steps. */
     private fun calculateAverageExecutionTime(data: List<Data>): Long {
-        if (data.isEmpty()) return 0L
-        return data.map { calculateDuration(it) }.average().toLong()
+        val tests = data.filter { it.metricType in TEST_METRICS }
+        if (tests.isEmpty()) return 0L
+        return tests.map { calculateDuration(it) }.average().toLong()
     }
 
     private fun calculateDuration(a: Data): Long = a.endDate - a.startDate
@@ -123,9 +141,10 @@ class TimelineSummaryProvider {
         val deviceProviderPreparingEvents = executionReport.deviceProviderPreparingEvent.groupBy { it.serialNumber }
         val testEvents = executionReport.testEvents.groupBy { it.device.serialNumber }
         val testParsingEvents = executionReport.testParsingEvents.groupBy { it.serialNumber }
+        val devicePhaseEvents = executionReport.devicePhaseEvents.groupBy { it.serialNumber }
 
         val keys = deviceConnectedEvents.keys + devicePreparingEvent.keys +
-            deviceProviderPreparingEvents.keys + testEvents.keys + testParsingEvents.keys
+            deviceProviderPreparingEvents.keys + testEvents.keys + testParsingEvents.keys + devicePhaseEvents.keys
 
         val reports = keys.associateWith { key ->
             ExecutionReport(
@@ -135,6 +154,7 @@ class TimelineSummaryProvider {
                 deviceProviderPreparingEvent = deviceProviderPreparingEvents[key] ?: emptyList(),
                 testEvents = testEvents[key] ?: emptyList(),
                 testParsingEvents = testParsingEvents[key] ?: emptyList(),
+                devicePhaseEvents = devicePhaseEvents[key] ?: emptyList(),
             )
         }
 
@@ -205,3 +225,11 @@ class TimelineSummaryProvider {
 
 /** Where [com.malinskiy.marathon.report.html.HtmlSummaryReporter] renders a test parsing log, relative to the report root. */
 fun testParsingLogHref(logFile: java.io.File): String = "test-parsing/${logFile.nameWithoutExtension}.html"
+
+private val TEST_METRICS = setOf(
+    MetricType.PASSED,
+    MetricType.FAILURE,
+    MetricType.IGNORED,
+    MetricType.INCOMPLETE,
+    MetricType.ASSUMPTION_FAILURE,
+)

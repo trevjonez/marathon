@@ -3,6 +3,7 @@ import clsx from 'clsx';
 import { scaleTime, scaleUtc } from 'd3-scale';
 import { timeFormat, utcFormat } from 'd3-time-format';
 import type {
+  DevicePhase,
   MetricType,
   TimelineData,
   TimelineExecutionResult,
@@ -25,6 +26,17 @@ const LEGEND: Array<{ type: MetricType; label: string }> = [
   { type: 'DEVICE_PROVIDER_INIT', label: 'Provider init' },
   { type: 'TEST_PARSING', label: 'Test parsing' },
 ];
+
+/** Device phases in lifecycle order; only the ones present in a run get a legend entry. */
+const PHASES: Array<{ phase: DevicePhase; label: string }> = [
+  { phase: 'INSTALL', label: 'Install' },
+  { phase: 'DEVICE_RESET', label: 'Device reset' },
+  { phase: 'CLEAR_DATA', label: 'Clear data' },
+  { phase: 'BEFORE_RUN', label: 'Before run' },
+  { phase: 'INSTRUMENTATION_START', label: 'Instrumentation start' },
+  { phase: 'AFTER_RUN', label: 'After run' },
+];
+const STEPS_KEY = 'tl_steps';
 
 const formatClock = timeFormat('%H:%M:%S');
 // Elapsed time is formatted as a UTC clock on epoch-relative ms so a 1h+ run
@@ -132,7 +144,19 @@ export function TimelineChart({ data, onOpenTest, className }: TimelineChartProp
     return () => ro.disconnect();
   }, [data]);
 
-  const measures = useMemo(() => data.measures.filter((m) => m.data.length > 0), [data.measures]);
+  const hideSteps = params.get(STEPS_KEY) === 'hide';
+  const hasSteps = useMemo(() => data.measures.some((m) => m.data.some((d) => d.betweenTests)), [data.measures]);
+  const phasesPresent = useMemo(() => {
+    const present = new Set(data.measures.flatMap((m) => m.data.map((d) => d.phase)));
+    return PHASES.filter((p) => present.has(p.phase));
+  }, [data.measures]);
+  const measures = useMemo(
+    () =>
+      data.measures
+        .map((m) => (hideSteps ? { ...m, data: m.data.filter((d) => !d.betweenTests) } : m))
+        .filter((m) => m.data.length > 0),
+    [data.measures, hideSteps],
+  );
   const [domainStart, domainEnd] = useMemo(() => domainOf(measures), [measures]);
   const availableWidth = Math.max(MIN_CHART_WIDTH, chartWidth);
   const scale = useMemo(
@@ -158,6 +182,15 @@ export function TimelineChart({ data, onOpenTest, className }: TimelineChartProp
       .ticks(count)
       .map((t) => ({ x: scaleX(scale, origin + t.getTime()), label: formatElapsed(t.getTime()) }));
   }, [scale, availableWidth, timeMode, domainStart, domainEnd]);
+
+  const setShowSteps = useCallback(
+    (show: boolean) =>
+      updateHash((p) => {
+        if (show) p.delete(STEPS_KEY);
+        else p.set(STEPS_KEY, 'hide');
+      }),
+    [updateHash],
+  );
 
   const setTimeMode = useCallback(
     (mode: TimeMode) =>
@@ -207,9 +240,10 @@ export function TimelineChart({ data, onOpenTest, className }: TimelineChartProp
         anyActive={anyActive}
         timeMode={timeMode}
         onTimeMode={setTimeMode}
+        steps={hasSteps ? { shown: !hideSteps, onChange: setShowSteps } : null}
       />
       <div className="rounded-md border border-surface-border">
-        <TimelineLegend />
+        <TimelineLegend phases={phasesPresent} />
         {emptyChart ? (
           <div className="p-6 text-sm text-slate-500 dark:text-slate-400">
             No timeline data recorded.
@@ -326,12 +360,18 @@ function domainOf(measures: TimelineMeasure[]): [Date, Date] {
   return [new Date(start), new Date(end)];
 }
 
-function TimelineLegend() {
+function TimelineLegend({ phases }: { phases: Array<{ phase: DevicePhase; label: string }> }) {
   return (
     <div className="timeline-legend px-3 py-2 border-b border-surface-border">
       {LEGEND.map((entry) => (
         <span key={entry.type} className="timeline-legend__item">
           <span className={`timeline-legend__swatch bar-${entry.type}`} />
+          {entry.label}
+        </span>
+      ))}
+      {phases.map((entry) => (
+        <span key={entry.phase} className="timeline-legend__item">
+          <span className={`timeline-legend__swatch bar-phase-${entry.phase}`} />
           {entry.label}
         </span>
       ))}
@@ -464,6 +504,7 @@ function TimelineRow({
           height: BAR_HEIGHT,
         } as const;
         const failedClass = point.failed ? ' bar-failed' : '';
+        const phaseClass = point.phase ? ` bar-phase-${point.phase}` : '';
         if (point.logHref) {
           // Remote test parsing: opens the device log captured for the attempt
           return (
@@ -493,7 +534,7 @@ function TimelineRow({
         return (
           <div
             key={i}
-            className={`bar bar-${point.metricType}${attemptClass}${failedClass}`}
+            className={`bar bar-${point.metricType}${phaseClass}${attemptClass}${failedClass}`}
             style={barStyle}
             aria-hidden
             {...commonHandlers}
@@ -556,7 +597,7 @@ function tooltipHtml(
     : '';
   return [
     `<div><strong>${escapeHtml(data.testName)}</strong></div>`,
-    `<div>${escapeHtml(data.metricType)} · ${duration} ms · started ${started}</div>`,
+    `<div>${escapeHtml(phaseLabel(data.phase) ?? data.metricType)} · ${duration} ms · started ${started}</div>`,
     deviceLine,
     data.batchId ? `<div>batch: ${escapeHtml(data.batchId)}</div>` : '',
     data.attemptIndex !== undefined ? `<div>attempt: ${data.attemptIndex + 1}</div>` : '',
@@ -565,6 +606,10 @@ function tooltipHtml(
   ]
     .filter(Boolean)
     .join('');
+}
+
+function phaseLabel(phase: DevicePhase | undefined): string | undefined {
+  return PHASES.find((p) => p.phase === phase)?.label;
 }
 
 function escapeHtml(input: string): string {
@@ -585,6 +630,7 @@ function TimelineFilters({
   anyActive,
   timeMode,
   onTimeMode,
+  steps,
 }: {
   facets: TimelineFacets;
   filters: Filters;
@@ -593,6 +639,8 @@ function TimelineFilters({
   anyActive: boolean;
   timeMode: TimeMode;
   onTimeMode: (mode: TimeMode) => void;
+  /** Between-test steps toggle; null when the run has none. */
+  steps: { shown: boolean; onChange: (show: boolean) => void } | null;
 }) {
   // Facet rows only render when there's more than one value to pick from, so
   // the toolbar can hold zero facets — the time-mode toggle keeps it non-empty.
@@ -624,6 +672,27 @@ function TimelineFilters({
         >
           reset
         </button>
+      )}
+      {steps && (
+        <div role="group" aria-label="Between-test steps" className="flex items-center gap-1">
+          <span className="mr-1 text-slate-500 dark:text-slate-400">Between-test steps:</span>
+          {([true, false] as const).map((shown) => (
+            <button
+              key={String(shown)}
+              type="button"
+              aria-pressed={steps.shown === shown}
+              onClick={() => steps.onChange(shown)}
+              className={clsx(
+                'rounded-full border px-2 py-0.5 transition',
+                steps.shown === shown
+                  ? 'border-sky-500 bg-sky-500/10 text-sky-700 dark:text-sky-300'
+                  : 'border-surface-border bg-surface hover:border-slate-400 dark:hover:border-slate-500',
+              )}
+            >
+              {shown ? 'shown' : 'hidden'}
+            </button>
+          ))}
+        </div>
       )}
       <div role="group" aria-label="Time scale" className="flex items-center gap-1">
         <span className="mr-1 text-slate-500 dark:text-slate-400">Time:</span>

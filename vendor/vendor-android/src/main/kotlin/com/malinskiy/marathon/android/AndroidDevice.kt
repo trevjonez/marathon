@@ -6,8 +6,10 @@ import com.malinskiy.marathon.android.model.ShellCommandResult
 import com.malinskiy.marathon.device.screenshot.Rotation
 import com.malinskiy.marathon.config.vendor.android.VideoConfiguration
 import com.malinskiy.marathon.device.Device
+import com.malinskiy.marathon.device.DevicePhase
 import com.malinskiy.marathon.device.screenshot.Screenshottable
 import com.malinskiy.marathon.report.logs.LogProducer
+import java.time.Instant
 
 interface AndroidDevice : Device, LogProducer, LogcatProducer, Screenshottable {
     val apiLevel: Int
@@ -20,6 +22,9 @@ interface AndroidDevice : Device, LogProducer, LogcatProducer, Screenshottable {
      * Called only once per device's lifetime
      */
     suspend fun setup()
+
+    /** Reports one step taken outside test execution for the timeline, see [phase]. */
+    fun recordPhase(phase: DevicePhase, label: String, start: Instant, finish: Instant, failed: Boolean) = Unit
 
     suspend fun getProperty(name: String, cached: Boolean = true): String?
 
@@ -68,4 +73,15 @@ interface AndroidDevice : Device, LogProducer, LogcatProducer, Screenshottable {
     suspend fun clearPackage(packageName: String): ShellCommandResult?
     
     suspend fun safeStartScreenRecorder(remoteFilePath: String, options: VideoConfiguration)
+}
+
+/** Runs [block] as a device phase on the timeline, recording it as failed if it throws. */
+suspend fun <T> AndroidDevice.phase(phase: DevicePhase, label: String, block: suspend () -> T): T {
+    val start = Instant.now()
+    var failed = true
+    try {
+        return block().also { failed = false }
+    } finally {
+        recordPhase(phase, label, start, Instant.now(), failed)
+    }
 }

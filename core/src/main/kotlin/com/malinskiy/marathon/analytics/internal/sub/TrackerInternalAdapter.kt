@@ -9,6 +9,7 @@ abstract class TrackerInternalAdapter : TrackerInternal {
             is DeviceProviderPreparingEvent -> trackDeviceProviderPreparing(event)
             is TestEvent -> trackTest(event)
             is TestParsingEvent -> trackTestParsing(event)
+            is DevicePhaseEvent -> trackDevicePhase(event)
         }
     }
 
@@ -17,6 +18,8 @@ abstract class TrackerInternalAdapter : TrackerInternal {
     protected open fun trackTest(event: TestEvent) = Unit
 
     protected open fun trackTestParsing(event: TestParsingEvent) = Unit
+
+    protected open fun trackDevicePhase(event: DevicePhaseEvent) = Unit
 
     protected open fun trackDeviceProviderPreparing(event: DeviceProviderPreparingEvent) = Unit
 

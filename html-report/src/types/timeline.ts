@@ -9,7 +9,8 @@ export type MetricType =
   | 'ASSUMPTION_FAILURE'
   | 'DEVICE_PROVIDER_INIT'
   | 'DEVICE_PREPARE'
-  | 'TEST_PARSING';
+  | 'TEST_PARSING'
+  | 'DEVICE_PHASE';
 
 export interface TimelineData {
   testName: string;
@@ -26,9 +27,21 @@ export interface TimelineData {
   deviceSerial?: string;
   /** Test parsing bars: the attempt's device log page, relative to the report root. */
   logHref?: string;
-  /** Test parsing bars: the attempt failed. */
+  /** Test parsing and device phase bars: the step failed. */
   failed?: boolean;
+  /** Device phase bars: the DevicePhase name; `testName` holds the step's label. */
+  phase?: DevicePhase;
+  /** Device phase bars: repeats around every batch (pm clear, instrumentation start, ...). */
+  betweenTests?: boolean;
 }
+
+export type DevicePhase =
+  | 'INSTALL'
+  | 'DEVICE_RESET'
+  | 'CLEAR_DATA'
+  | 'BEFORE_RUN'
+  | 'INSTRUMENTATION_START'
+  | 'AFTER_RUN';
 
 export interface TimelineDevice {
   serial?: string;
