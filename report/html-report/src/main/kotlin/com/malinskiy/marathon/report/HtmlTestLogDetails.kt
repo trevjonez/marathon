@@ -11,6 +11,8 @@ data class HtmlTestLogDetails(
     @SerializedName("test_id") val testId: String,
     @SerializedName("display_name") val displayName: String,
     @SerializedName("attempts") val attempts: List<HtmlLogAttempt>,
+    /** Null for a test's log page; `test-parsing` for a device's remote test parsing log, which has no pool or test. */
+    @SerializedName("kind") val kind: String? = null,
 )
 
 data class HtmlLogAttempt(

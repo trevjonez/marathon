@@ -200,6 +200,10 @@
 .bar-TEST_PARSING {
   background: var(--tl-parsing);
 }
+/* A failed attempt keeps its own colour, striped with the failure colour so it reads at any bar width */
+.bar-failed {
+  background-image: repeating-linear-gradient(135deg, var(--tl-failed) 0 4px, transparent 4px 8px);
+}
 .timeline-tooltip {
   position: fixed;
   z-index: 20;

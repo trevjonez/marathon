@@ -24,4 +24,8 @@ data class Data(
     val testFilename: String? = null,
     /** Serialized safe device id (escape()'d) so the URL construction is a pure join. */
     val deviceSerial: String? = null,
+    /** Test parsing bars: href of the attempt's log page, relative to the report root. */
+    val logHref: String? = null,
+    /** Test parsing bars: the attempt failed. */
+    val failed: Boolean? = null,
 )

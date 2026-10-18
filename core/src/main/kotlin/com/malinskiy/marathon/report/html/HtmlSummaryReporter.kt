@@ -26,6 +26,7 @@ import com.malinskiy.marathon.report.HtmlPoolSummary
 import com.malinskiy.marathon.report.HtmlShortTest
 import com.malinskiy.marathon.report.HtmlTag
 import com.malinskiy.marathon.report.HtmlTestLogDetails
+import com.malinskiy.marathon.report.timeline.testParsingLogHref
 import com.malinskiy.marathon.report.Reporter
 import com.malinskiy.marathon.report.Status
 import com.malinskiy.marathon.report.timeline.TimelineSummaryProvider
@@ -108,6 +109,8 @@ class HtmlSummaryReporter(
             payloadJson = htmlIndexJson,
             extraJs = "window.timeline = $timelineJson;",
         )
+
+        renderTestParsingLogs(executionReport, outputDir, ::render)
 
         val poolsDir = File(outputDir, "pools").apply { mkdirs() }
 
@@ -428,6 +431,54 @@ class HtmlSummaryReporter(
     internal fun maxDuration(poolSummaries: List<PoolSummary>): Long =
         durationPerPool(poolSummaries).maxOrNull() ?: 0L
 
+    /**
+     * One log page per device that ran remote test parsing. The device's capture file holds every attempt it made, so
+     * the page shows the whole file and counts as failed if any attempt on it failed.
+     */
+    private fun renderTestParsingLogs(
+        executionReport: ExecutionReport,
+        outputDir: File,
+        render: (target: File, payloadGlobal: String, payloadJson: String, extraJs: String) -> Unit,
+    ) {
+        val devices = executionReport.deviceConnectedEvents.associate { it.device.serialNumber to it.device }
+        executionReport.testParsingEvents
+            .filter { it.logFile != null }
+            .groupBy { it.logFile!! }
+            .forEach { (logFile, attempts) ->
+                val serial = attempts.first().serialNumber
+                val device = devices[serial]?.toHtmlDevice() ?: HtmlDevice(
+                    serial = serial.escape(),
+                    modelName = "",
+                    manufacturer = "",
+                    osVersion = "",
+                    osMajor = null,
+                    networkState = "",
+                    features = emptyList(),
+                    isTablet = false,
+                    apiLevel = "",
+                )
+                val details = HtmlTestLogDetails(
+                    poolId = "",
+                    testId = "test-parsing",
+                    displayName = "Test parsing on $serial",
+                    attempts = listOf(
+                        HtmlLogAttempt(
+                            attemptIndex = 0,
+                            final = true,
+                            status = if (attempts.any { it.failed }) Status.Failed else Status.Passed,
+                            deviceId = device.serial,
+                            device = device,
+                            // The page sits in html/test-parsing/, the capture in <output>/test-parsing/
+                            logPath = "../../test-parsing/${logFile.name}",
+                            logBody = readInlineLog(logFile),
+                        )
+                    ),
+                    kind = "test-parsing",
+                )
+                render(File(outputDir, testParsingLogHref(logFile)).apply { parentFile.mkdirs() }, "logs", gson.toJson(details), "")
+            }
+    }
+
     private fun durationPerPool(poolSummaries: List<PoolSummary>): List<Long> =
         poolSummaries.map { pool -> pool.tests.sumOf { it.durationMillis() } }
 
@@ -474,6 +525,10 @@ class HtmlSummaryReporter(
             result.test,
             result.testBatchId,
         )
+        return readInlineLog(logFile)
+    }
+
+    private fun readInlineLog(logFile: File): String? {
         if (!logFile.exists()) return null
         val length = logFile.length()
         return when {

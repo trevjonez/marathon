@@ -24,6 +24,10 @@ export interface TimelineData {
   poolId?: string;
   testFilename?: string;
   deviceSerial?: string;
+  /** Test parsing bars: the attempt's device log page, relative to the report root. */
+  logHref?: string;
+  /** Test parsing bars: the attempt failed. */
+  failed?: boolean;
 }
 
 export interface TimelineDevice {
