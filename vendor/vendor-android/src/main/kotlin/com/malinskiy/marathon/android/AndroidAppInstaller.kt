@@ -6,6 +6,7 @@ import com.malinskiy.marathon.android.extension.testBundlesCompat
 import com.malinskiy.marathon.android.model.AndroidTestBundle
 import com.malinskiy.marathon.config.Configuration
 import com.malinskiy.marathon.config.vendor.VendorConfiguration
+import com.malinskiy.marathon.device.DevicePhase
 import com.malinskiy.marathon.exceptions.DeviceSetupException
 import com.malinskiy.marathon.execution.withRetry
 import com.malinskiy.marathon.log.MarathonLogging
@@ -84,7 +85,7 @@ class AndroidAppInstaller(configuration: Configuration) {
             listOf<String>(applicationApk.absolutePath)
         }
 
-        withRetry(attempts = MAX_RETIRES, delayTime = 1000) {
+        device.phase(DevicePhase.INSTALL, "install $appPackage") { withRetry(attempts = MAX_RETIRES, delayTime = 1000) {
             try {
                 if (installed(device, appPackage)) {
                     logger.info("Uninstalling $appPackage from ${device.serialNumber}")
@@ -105,7 +106,7 @@ class AndroidAppInstaller(configuration: Configuration) {
                 logger.error(e) { "Error while installing $appPackage, ${absolutePaths.joinToString()} on ${device.serialNumber}" }
                 throw DeviceSetupException("Error while installing $appPackage on ${device.serialNumber}", e)
             }
-        }
+        } }
     }
 
     /**

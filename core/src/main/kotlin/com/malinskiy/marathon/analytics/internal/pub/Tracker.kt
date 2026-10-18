@@ -1,6 +1,7 @@
 package com.malinskiy.marathon.analytics.internal.pub
 
 import com.malinskiy.marathon.device.DeviceInfo
+import com.malinskiy.marathon.device.DevicePhase
 import com.malinskiy.marathon.device.DevicePoolId
 import com.malinskiy.marathon.execution.TestResult
 import java.io.File
@@ -20,6 +21,9 @@ interface Tracker {
      * device log captured for the attempt, when the parser keeps one.
      */
     fun testParsing(serialNumber: String, startTime: Instant, finishTime: Instant, logFile: File? = null, failed: Boolean = false) = Unit
+
+    /** One step a device took outside test execution, e.g. installing a package or clearing app data between batches. */
+    fun devicePhase(serialNumber: String, phase: DevicePhase, label: String, startTime: Instant, finishTime: Instant, failed: Boolean) = Unit
 
     /**
      * @param final signals if the test execution status is final, i.e. no more retries will happen

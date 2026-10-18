@@ -18,6 +18,8 @@ object TestConfigurationFactory {
         splitApks: List<File>? = emptyList(),
         extraApplicationsOutput: List<File>? = emptyList(),
         outputDir: File = File(""),
+        applicationPmClear: Boolean = false,
+        testApplicationPmClear: Boolean = false,
     ): Configuration {
         return Configuration.Builder(
             name = "",
@@ -32,7 +34,9 @@ object TestConfigurationFactory {
                 autoGrantPermission = autoGrantPermission,
                 installOptions = installOptions,
                 fileSyncConfiguration = fileSyncConfiguration,
-                allureConfiguration = allureConfiguration
+                allureConfiguration = allureConfiguration,
+                applicationPmClear = applicationPmClear,
+                testApplicationPmClear = testApplicationPmClear,
             )
             this.isCodeCoverageEnabled = isCodeCoverageEnabled
             debug = false

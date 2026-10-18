@@ -2,6 +2,7 @@ package com.malinskiy.marathon.android.adam
 
 import com.malinskiy.marathon.analytics.internal.pub.Tracker
 import com.malinskiy.marathon.device.DeviceInfo
+import com.malinskiy.marathon.device.DevicePhase
 import com.malinskiy.marathon.device.DevicePoolId
 import com.malinskiy.marathon.execution.TestResult
 import java.io.File
@@ -13,6 +14,13 @@ class RecordingTracker : Tracker {
 
     val devicePreparing = CopyOnWriteArrayList<Span>()
     val testParsing = CopyOnWriteArrayList<Span>()
+    val phases = CopyOnWriteArrayList<Phase>()
+
+    data class Phase(val phase: DevicePhase, val label: String, val start: Instant, val finish: Instant, val failed: Boolean)
+
+    override fun devicePhase(serialNumber: String, phase: DevicePhase, label: String, startTime: Instant, finishTime: Instant, failed: Boolean) {
+        phases.add(Phase(phase, label, startTime, finishTime, failed))
+    }
 
     override fun devicePreparing(serialNumber: String, startTime: Instant, finishTime: Instant) {
         devicePreparing.add(Span(serialNumber, startTime, finishTime))

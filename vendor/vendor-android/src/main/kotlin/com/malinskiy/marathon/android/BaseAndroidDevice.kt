@@ -24,6 +24,7 @@ import com.malinskiy.marathon.config.vendor.android.FileSyncEntry
 import com.malinskiy.marathon.config.vendor.android.PathRoot
 import com.malinskiy.marathon.config.vendor.android.SerialStrategy
 import com.malinskiy.marathon.device.DeviceFeature
+import com.malinskiy.marathon.device.DevicePhase
 import com.malinskiy.marathon.device.DevicePoolId
 import com.malinskiy.marathon.device.OperatingSystem
 import com.malinskiy.marathon.device.toDeviceInfo
@@ -40,6 +41,7 @@ import com.malinskiy.marathon.time.Timer
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
+import java.time.Instant
 import java.util.UUID
 import kotlin.system.measureTimeMillis
 
@@ -52,6 +54,10 @@ abstract class BaseAndroidDevice(
     protected val track: Track,
     protected val timer: Timer
 ) : AndroidDevice, CoroutineScope {
+
+    override fun recordPhase(phase: DevicePhase, label: String, start: Instant, finish: Instant, failed: Boolean) =
+        track.devicePhase(serialNumber, phase, label, start, finish, failed)
+
     override val logger = MarathonLogging.logger(AndroidDevice::class.java.simpleName)
 
     override var abi: String = "Unknown"

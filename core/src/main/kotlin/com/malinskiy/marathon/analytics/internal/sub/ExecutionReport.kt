@@ -1,6 +1,7 @@
 package com.malinskiy.marathon.analytics.internal.sub
 
 import com.malinskiy.marathon.device.DeviceInfo
+import com.malinskiy.marathon.device.DevicePhase
 import com.malinskiy.marathon.device.DevicePoolId
 import com.malinskiy.marathon.execution.TestResult
 import com.malinskiy.marathon.execution.TestStatus
@@ -18,6 +19,7 @@ data class ExecutionReport(
     val deviceProviderPreparingEvent: List<DeviceProviderPreparingEvent>,
     val testEvents: List<TestEvent>,
     val testParsingEvents: List<TestParsingEvent> = emptyList(),
+    val devicePhaseEvents: List<DevicePhaseEvent> = emptyList(),
 ) {
     val summary: Summary by lazy {
         val pools = deviceConnectedEvents.map { it.poolId }.distinct()
@@ -118,6 +120,15 @@ data class DeviceProviderPreparingEvent(
     val start: Instant,
     val finish: Instant,
     val serialNumber: String
+) : Event()
+
+data class DevicePhaseEvent(
+    val start: Instant,
+    val finish: Instant,
+    val serialNumber: String,
+    val phase: DevicePhase,
+    val label: String,
+    val failed: Boolean = false,
 ) : Event()
 
 data class TestParsingEvent(
