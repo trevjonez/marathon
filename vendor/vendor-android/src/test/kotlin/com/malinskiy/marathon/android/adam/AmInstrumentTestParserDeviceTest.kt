@@ -10,6 +10,14 @@ import com.malinskiy.marathon.analytics.internal.pub.Track
 import com.malinskiy.marathon.android.AndroidTestBundleIdentifier
 import com.malinskiy.marathon.config.vendor.VendorConfiguration
 import com.malinskiy.marathon.test.Test as MarathonTest
+import com.malinskiy.marathon.android.adam.log.Log
+import com.malinskiy.marathon.android.adam.log.LogCatHeader
+import com.malinskiy.marathon.android.adam.log.LogCatMessage
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import org.amshove.kluent.shouldContain
+import com.malinskiy.marathon.extension.escape
 import kotlinx.coroutines.runBlocking
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeGreaterOrEqualTo
@@ -30,7 +38,7 @@ class AmInstrumentTestParserDeviceTest {
     @TempDir
     lateinit var temp: File
 
-    private val configuration = TestConfigurationFactory.create()
+    private val configuration by lazy { TestConfigurationFactory.create(outputDir = temp) }
     private val tracker = RecordingTracker()
     private val track = Track().add(tracker)
     private val device by lazy { TestDeviceFactory.createAdam(client, configuration, mock(), track) }
@@ -42,6 +50,8 @@ class AmInstrumentTestParserDeviceTest {
             track,
         )
     }
+
+    private fun parseLog() = File(temp, "test-parsing/${device.serialNumber.escape()}.log")
 
     @Test
     fun `parsing reuses an install that already happened`() {
@@ -110,7 +120,74 @@ class AmInstrumentTestParserDeviceTest {
         tracker.devicePreparing.size shouldBeEqualTo 1
         tracker.testParsing.size shouldBeEqualTo 1
     }
+
+    @Test
+    fun `device logcat during the parse is written under test-parsing`() {
+        runBlocking {
+            server.multipleSessions {
+                serial("emulator-5554") {
+                    boot()
+                    cleanInstall(temp)
+                    listTests(LISTED_TEST, delayMillis = 1_000)
+                }
+                features("emulator-5554")
+            }
+
+            device.setup()
+            device.onLogcat(logLine(Log.LogLevel.INFO, "Before", "not captured"))
+            coroutineScope {
+                launch {
+                    // Lands while am instrument is still running
+                    delay(500)
+                    device.onLogcat(logLine(Log.LogLevel.DEBUG, "TestRunner", "run started"))
+                }
+                parser.extract(device)
+            }
+            device.onLogcat(logLine(Log.LogLevel.INFO, "After", "not captured"))
+        }
+
+        val lines = parseLog().readLines()
+        lines.first() shouldContain "test parsing on ${device.serialNumber}"
+        lines.drop(1) shouldBeEqualTo listOf("10-18 02:57:54.000: D/TestRunner(1): run started")
+        device.logcatListenerCount() shouldBeEqualTo 0
+        tracker.testParsing.single().let {
+            it.logFile shouldBeEqualTo parseLog()
+            it.failed shouldBeEqualTo false
+        }
+    }
+
+    @Test
+    fun `a failed parse keeps its logcat and leaves no listeners behind`() {
+        runBlocking {
+            server.multipleSessions {
+                serial("emulator-5554") {
+                    boot()
+                    cleanInstall(temp)
+                    listTests(PROCESS_CRASHED, delayMillis = 500)
+                    listTests(PROCESS_CRASHED)
+                }
+                features("emulator-5554")
+            }
+
+            device.setup()
+            coroutineScope {
+                launch {
+                    delay(250)
+                    device.onLogcat(logLine(Log.LogLevel.ERROR, "AndroidRuntime", "FATAL EXCEPTION: main"))
+                }
+                assertThrows<Exception> { parser.extract(device) }
+            }
+        }
+
+        parseLog().readText() shouldContain "E/AndroidRuntime(1): FATAL EXCEPTION: main"
+        device.logcatListenerCount() shouldBeEqualTo 0
+        tracker.testParsing.single().let {
+            it.logFile shouldBeEqualTo parseLog()
+            it.failed shouldBeEqualTo true
+        }
+    }
 }
+
 
 private val LISTED_TEST = """
     INSTRUMENTATION_STATUS: class=com.example.FooTest
@@ -142,11 +219,19 @@ private val PROCESS_CRASHED = """
     INSTRUMENTATION_CODE: 0
 """.trimIndent() + "\n"
 
-private fun DeviceExpectation.listTests(output: String) {
+private fun DeviceExpectation.listTests(output: String, delayMillis: Long? = null) {
     session {
         respondOkay()
         expectShell { "am instrument -w -r -e log true com.example.test/androidx.test.runner.AndroidJUnitRunner" }
             .accept()
+            .apply { if (delayMillis != null) delay(delayMillis) }
             .respond(output)
     }
 }
+
+private fun logLine(level: Log.LogLevel, tag: String, text: String) =
+    LogCatMessage(LogCatHeader(level, 1, 1, "app", tag, "10-18 02:57:54.000"), text)
+
+private fun AdamAndroidDevice.logcatListenerCount(): Int =
+    AdamAndroidDevice::class.java.getDeclaredField("logcatListeners").apply { isAccessible = true }.get(this)
+        .let { (it as Collection<*>).size }

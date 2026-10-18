@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.mock
+import java.io.File
 import java.time.Instant
 
 class TestParsingTimelineTest {
@@ -73,11 +74,14 @@ class TestParsingTimelineTest {
         val device = mock<Device> { on { serialNumber } doReturn "emulator-5554" }
 
         runBlocking {
-            track.trackTestParsing(device) { "ok" } shouldBeEqualTo "ok"
-            assertThrows<IllegalStateException> { track.trackTestParsing(device) { error("boom") } }
+            track.trackTestParsing(device, File("ok.log")) { "ok" } shouldBeEqualTo "ok"
+            assertThrows<IllegalStateException> { track.trackTestParsing(device, File("boom.log")) { error("boom") } }
         }
         generator.close()
 
-        captured!!.testParsingEvents.map { it.serialNumber } shouldBeEqualTo listOf("emulator-5554", "emulator-5554")
+        captured!!.testParsingEvents.map { Triple(it.serialNumber, it.logFile, it.failed) } shouldBeEqualTo listOf(
+            Triple("emulator-5554", File("ok.log"), false),
+            Triple("emulator-5554", File("boom.log"), true),
+        )
     }
 }

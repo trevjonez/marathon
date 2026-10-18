@@ -5,6 +5,7 @@ import com.malinskiy.marathon.device.DevicePoolId
 import com.malinskiy.marathon.execution.TestResult
 import com.malinskiy.marathon.execution.TestStatus
 import com.malinskiy.marathon.test.toTestName
+import java.io.File
 import java.time.Instant
 
 /**
@@ -122,7 +123,9 @@ data class DeviceProviderPreparingEvent(
 data class TestParsingEvent(
     val start: Instant,
     val finish: Instant,
-    val serialNumber: String
+    val serialNumber: String,
+    val logFile: File? = null,
+    val failed: Boolean = false,
 ) : Event()
 
 data class TestEvent(
