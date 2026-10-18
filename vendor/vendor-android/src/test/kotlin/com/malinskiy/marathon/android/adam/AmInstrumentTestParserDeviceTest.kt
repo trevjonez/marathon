@@ -148,7 +148,7 @@ class AmInstrumentTestParserDeviceTest {
 
         val lines = parseLog().readLines()
         lines.first() shouldContain "test parsing on ${device.serialNumber}"
-        lines.drop(1) shouldBeEqualTo listOf("10-18 02:57:54.000: D/TestRunner(1): run started")
+        lines.drop(1) shouldBeEqualTo listOf("10-18 02:57:54.000 1-1/app D/TestRunner: run started")
         device.logcatListenerCount() shouldBeEqualTo 0
         tracker.testParsing.single().let {
             it.logFile shouldBeEqualTo parseLog()
@@ -179,7 +179,7 @@ class AmInstrumentTestParserDeviceTest {
             }
         }
 
-        parseLog().readText() shouldContain "E/AndroidRuntime(1): FATAL EXCEPTION: main"
+        parseLog().readText() shouldContain "1-1/app E/AndroidRuntime: FATAL EXCEPTION: main"
         device.logcatListenerCount() shouldBeEqualTo 0
         tracker.testParsing.single().let {
             it.logFile shouldBeEqualTo parseLog()
