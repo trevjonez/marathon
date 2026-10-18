@@ -729,6 +729,8 @@ Annotations come from the test parser. The remote parser only sees runtime-retai
 set up with the test annotation producer (see [test parser](../android/configure#test-parser)). A test with several
 values in one group, such as a class-level and a method-level team, is listed under each of them when grouping.
 
+Tags can only be configured in the Marathonfile; the Gradle plugin doesn't expose them.
+
 :::
 
 
