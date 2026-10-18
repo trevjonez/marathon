@@ -17,10 +17,11 @@ object TestConfigurationFactory {
         testApplicationOutput: File? = File(javaClass.classLoader.getResource("apk/app-debug-androidTest.apk").file),
         splitApks: List<File>? = emptyList(),
         extraApplicationsOutput: List<File>? = emptyList(),
+        outputDir: File = File(""),
     ): Configuration {
         return Configuration.Builder(
             name = "",
-            outputDir = File(""),
+            outputDir = outputDir,
         ).apply {
             vendorConfiguration = VendorConfiguration.AndroidConfiguration(
                 androidSdk = File(""),

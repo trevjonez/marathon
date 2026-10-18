@@ -31,9 +31,14 @@ import com.malinskiy.marathon.log.MarathonLogging
 import com.malinskiy.marathon.test.Test
 import kotlinx.coroutines.NonCancellable.isActive
 import kotlinx.coroutines.withTimeoutOrNull
+import com.malinskiy.marathon.android.adam.log.ParseLogcatCapture
+import com.malinskiy.marathon.extension.escape
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import java.io.File
 
 private const val LISTENER_ARGUMENT = "listener"
+private const val LOGCAT_DRAIN_MILLIS = 500L
 private const val TEST_ANNOTATION_PRODUCER = "com.malinskiy.adam.junit4.android.listener.TestAnnotationProducer"
 
 class AmInstrumentTestParser(
@@ -71,25 +76,41 @@ class AmInstrumentTestParser(
         // Shared with the device's own preparation, so the scheduler doesn't reinstall on the parsing device
         adamDevice.ensureInstalled(configuration)
 
-        track.trackTestParsing(adamDevice) {
-            testBundles.forEach { bundle ->
-                try {
-                    result.addAll(parseTests(adamDevice, configuration, vendorConfiguration, bundle, blockListenerArgumentOverride = false))
-                } catch (e: TestAnnotationProducerNotFoundException) {
-                    logger.warn {
-                        """Previous parsing attempt failed for ${e.instrumentationPackage}
-                         file: ${e.testApplication}
-                       due to test parser misconfiguration: test annotation producer was not found. See https://docs.marathonlabs.io/runner/android/configure#test-parser
-                       Next parsing attempt will remove overridden test run listener.
-                       Device log:
-                       ${e.logcat}
-                    """.trimIndent()
+        val capture = ParseLogcatCapture(adamDevice, File(configuration.outputDir, "test-parsing/${adamDevice.serialNumber.escape()}.log"))
+        capture.start("test parsing on ${adamDevice.serialNumber}")
+        try {
+            track.trackTestParsing(adamDevice, capture.file) {
+                testBundles.forEach { bundle ->
+                    try {
+                        result.addAll(parseTests(adamDevice, configuration, vendorConfiguration, bundle, blockListenerArgumentOverride = false))
+                    } catch (e: TestAnnotationProducerNotFoundException) {
+                        logger.warn {
+                            """Previous parsing attempt failed for ${e.instrumentationPackage}
+                             file: ${e.testApplication}
+                           due to test parser misconfiguration: test annotation producer was not found. See https://docs.marathonlabs.io/runner/android/configure#test-parser
+                           Next parsing attempt will remove overridden test run listener.
+                           Device log:
+                           ${e.logcat}
+                        """.trimIndent()
+                        }
+                        // Misconfiguration, not a flaky device: reattempt once on the same device with the listener override removed.
+                        // Any other failure propagates so the orchestrator can retry on a different device.
+                        result.addAll(parseTests(adamDevice, configuration, vendorConfiguration, bundle, blockListenerArgumentOverride = true))
                     }
-                    // Misconfiguration, not a flaky device: reattempt once on the same device with the listener override removed.
-                    // Any other failure propagates so the orchestrator can retry on a different device.
-                    result.addAll(parseTests(adamDevice, configuration, vendorConfiguration, bundle, blockListenerArgumentOverride = true))
                 }
             }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            // Give logcat a moment to deliver what the device logged as it failed; a crash is often the last thing written
+            delay(LOGCAT_DRAIN_MILLIS)
+            logger.warn {
+                "Test parsing failed on ${adamDevice.serialNumber}, device logcat for the attempt is in ${capture.file}\n" +
+                    capture.problems().joinToString("\n").ifEmpty { "(no warnings or errors were logged)" }
+            }
+            throw e
+        } finally {
+            capture.close()
         }
 
         return result.toList()
@@ -188,7 +209,6 @@ class AmInstrumentTestParser(
                     }
                 }
             }
-            listener.finish()
 
             if (!observedAnnotations) {
                 logger.warn {
@@ -199,7 +219,7 @@ class AmInstrumentTestParser(
 
             return tests
         } finally {
-            listener.stop()
+            listener.finish()
         }
     }
 }

@@ -4,6 +4,7 @@ import com.malinskiy.marathon.device.Device
 import com.malinskiy.marathon.device.DeviceInfo
 import com.malinskiy.marathon.device.DevicePoolId
 import com.malinskiy.marathon.execution.TestResult
+import java.io.File
 import java.time.Instant
 import java.util.concurrent.CopyOnWriteArrayList
 
@@ -23,8 +24,8 @@ class Track : Tracker {
         delegates.forEach { it.devicePreparing(serialNumber, startTime, finishTime) }
     }
 
-    override fun testParsing(serialNumber: String, startTime: Instant, finishTime: Instant) {
-        delegates.forEach { it.testParsing(serialNumber, startTime, finishTime) }
+    override fun testParsing(serialNumber: String, startTime: Instant, finishTime: Instant, logFile: File?, failed: Boolean) {
+        delegates.forEach { it.testParsing(serialNumber, startTime, finishTime, logFile, failed) }
     }
 
     override fun deviceConnected(poolId: DevicePoolId, device: DeviceInfo) {
@@ -50,12 +51,13 @@ class Track : Tracker {
     /**
      * Records the attempt even when [block] throws, so failed parsing attempts still show where the time went
      */
-    suspend fun <T> trackTestParsing(device: Device, block: suspend () -> T): T {
+    suspend fun <T> trackTestParsing(device: Device, logFile: File? = null, block: suspend () -> T): T {
         val start = Instant.now()
+        var failed = true
         try {
-            return block.invoke()
+            return block.invoke().also { failed = false }
         } finally {
-            testParsing(device.serialNumber, start, Instant.now())
+            testParsing(device.serialNumber, start, Instant.now(), logFile, failed)
         }
     }
 

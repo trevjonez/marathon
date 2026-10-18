@@ -3,6 +3,7 @@ package com.malinskiy.marathon.analytics.internal.pub
 import com.malinskiy.marathon.device.DeviceInfo
 import com.malinskiy.marathon.device.DevicePoolId
 import com.malinskiy.marathon.execution.TestResult
+import java.io.File
 import java.time.Instant
 
 /**
@@ -15,9 +16,10 @@ interface Tracker {
     fun devicePreparing(serialNumber: String, startTime: Instant, finishTime: Instant)
 
     /**
-     * On-device test discovery by a remote test parser, one call per attempt (including failed ones)
+     * On-device test discovery by a remote test parser, one call per attempt (including failed ones). [logFile] is the
+     * device log captured for the attempt, when the parser keeps one.
      */
-    fun testParsing(serialNumber: String, startTime: Instant, finishTime: Instant) = Unit
+    fun testParsing(serialNumber: String, startTime: Instant, finishTime: Instant, logFile: File? = null, failed: Boolean = false) = Unit
 
     /**
      * @param final signals if the test execution status is final, i.e. no more retries will happen
