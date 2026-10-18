@@ -1,0 +1,13 @@
+name: "sample-app tests"
+outputDir: "./marathon"
+outputConfiguration:
+  tags:
+    - group: "team"
+      regex: "com\\.aetna\\.teams\\..*"
+    - group: "env"
+      regex: "com\\.aetna\\.test\\.(Mock|QA\\d?|Prod)Test"
+vendorConfiguration:
+  type: "Android"
+  androidSdk: "/local/android"
+  applicationApk: "kotlin-buildscript/build/outputs/apk/debug/kotlin-buildscript-debug.apk"
+  testApplicationApk: "kotlin-buildscript/build/outputs/apk/androidTest/debug/kotlin-buildscript-debug-androidTest.apk"

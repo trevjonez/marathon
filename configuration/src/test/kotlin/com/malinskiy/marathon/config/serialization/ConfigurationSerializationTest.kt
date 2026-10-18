@@ -44,6 +44,7 @@ class ConfigurationSerializationTest {
             "sample_9.yaml",
             "sample_10.yaml",
             "sample_11.yaml",
+            "sample_13.yaml",
             "android/sample_1.yaml",
             "android/sample_2.yaml",
             "android/sample_3.yaml",

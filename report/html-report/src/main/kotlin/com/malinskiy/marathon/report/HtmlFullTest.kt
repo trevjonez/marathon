@@ -31,4 +31,5 @@ data class HtmlFullTest(
     @SerializedName("attempt_count") val attemptCount: Int,
     @SerializedName("is_flaky") val isFlaky: Boolean,
     @SerializedName("distinct_devices") val distinctDevices: List<HtmlDevice>,
+    @SerializedName("tags") val tags: List<HtmlTag> = emptyList(),
 )

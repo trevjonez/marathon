@@ -4,6 +4,7 @@ import clsx from 'clsx';
 import { AppShell } from '../../components/AppShell';
 import { DeviceChip, osLabel } from '../../components/DeviceChip';
 import { FlakyBadge, StatusBadge, toneClasses, type StatusTone } from '../../components/StatusBadge';
+import { TagChip } from '../../components/TagChip';
 import { useHashState } from '../../hooks/useHashState';
 import { useScrollMargin } from '../../hooks/useScrollMargin';
 import type { HtmlPoolSummary, HtmlShortTest, Status } from '../../types/report';
@@ -17,6 +18,8 @@ import {
   serializeSet,
   SORT_OPTIONS,
   sortTests,
+  TAG_PARAM_PREFIX,
+  tagGroups,
   type GroupKey,
   type PoolFilters,
   type SortKey,
@@ -47,6 +50,7 @@ export function PoolPage({ data }: { data: HtmlPoolSummary }) {
       ),
     [data.tests],
   );
+  const availableTagGroups = useMemo(() => tagGroups(data.tests), [data.tests]);
 
   const breadcrumbs = (
     <>
@@ -70,9 +74,10 @@ export function PoolPage({ data }: { data: HtmlPoolSummary }) {
         pool={data}
         manufacturers={availableManufacturers}
         osMajors={availableOsMajors}
+        tagGroups={availableTagGroups}
       />
 
-      <VirtualTestList groups={grouped} poolId={data.id} />
+      <VirtualTestList groups={grouped} poolId={data.id} multiBucket={filters.group.startsWith('tag:')} />
     </AppShell>
   );
 }
@@ -83,12 +88,14 @@ function FilterBar({
   pool,
   manufacturers,
   osMajors,
+  tagGroups,
 }: {
   filters: PoolFilters;
   update: (mutate: (params: URLSearchParams) => void) => void;
   pool: HtmlPoolSummary;
   manufacturers: string[];
   osMajors: string[];
+  tagGroups: Array<{ group: string; values: string[] }>;
 }) {
   const toggleSet = (key: string, values: Set<string>, value: string) =>
     update((p) => {
@@ -138,6 +145,11 @@ function FilterBar({
             {GROUP_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
+              </option>
+            ))}
+            {tagGroups.map(({ group }) => (
+              <option key={group} value={`tag:${group}`}>
+                Tag: {group}
               </option>
             ))}
           </select>
@@ -196,6 +208,18 @@ function FilterBar({
         active={filters.manufacturers}
         onToggle={(v) => toggleSet('mfr', filters.manufacturers, v)}
       />
+      {tagGroups.map(({ group, values }) => {
+        const active = filters.tags.get(group) ?? new Set<string>();
+        return (
+          <FilterCategory
+            key={group}
+            label={`Tag: ${group}`}
+            values={values}
+            active={active}
+            onToggle={(v) => toggleSet(`${TAG_PARAM_PREFIX}${group}`, active, v)}
+          />
+        );
+      })}
     </div>
   );
 }
@@ -329,9 +353,12 @@ type Row =
 function VirtualTestList({
   groups,
   poolId,
+  multiBucket = false,
 }: {
   groups: Array<{ label: string; items: HtmlShortTest[] }>;
   poolId: string;
+  /** Grouping can list one test under several headers (tag groups); say so on each header. */
+  multiBucket?: boolean;
 }) {
   const rows: Row[] = useMemo(() => {
     const out: Row[] = [];
@@ -387,6 +414,11 @@ function VirtualTestList({
                 style={commonStyle}
               >
                 {row.label} <span className="ml-1 text-slate-400">({row.count})</span>
+                {multiBucket && (
+                  <span className="ml-2 font-normal normal-case text-slate-400">
+                    tests with several values are listed under each
+                  </span>
+                )}
               </div>
             );
           }
@@ -437,6 +469,7 @@ function TestRow({
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-1.5">
+        {test.tags?.map((tag) => <TagChip key={`${tag.group}:${tag.value}`} tag={tag} />)}
         <DeviceChip device={test.device} compact />
         <span className="rounded border border-surface-border bg-surface-alt px-1.5 py-0.5 text-[10px] uppercase tracking-wide">
           {osLabel(test.device)}

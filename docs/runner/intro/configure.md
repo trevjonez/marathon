@@ -707,4 +707,29 @@ marathon {
 </Tabs>
 
 
+#### Report tags
+
+Test annotations can be shown in the HTML report as tags, which the pool page can filter and group by. Each rule names
+a tag group and a regex that has to match an annotation's fully qualified name in full. Every annotation is tagged by
+the first rule it matches; annotations that match no rule aren't shown. The tag value is the regex's first capture
+group, or the annotation's simple name when there's no group or it captured nothing.
+
+```yaml
+outputConfiguration:
+  tags:
+    - group: "team"
+      regex: "com\\.example\\.teams\\..*"            # @com.example.teams.Payments -> team: Payments
+    - group: "env"
+      regex: "com\\.example\\.test\\.(Mock|QA|Prod)Test" # @com.example.test.MockTest -> env: Mock
+```
+
+:::info
+
+Annotations come from the test parser. The remote parser only sees runtime-retained annotations, and only when it's
+set up with the test annotation producer (see [test parser](../android/configure#test-parser)). A test with several
+values in one group, such as a class-level and a method-level team, is listed under each of them when grouping.
+
+:::
+
+
 [1]: https://github.com/MarathonLabs/marathon/blob/develop/configuration/src/main/kotlin/com/malinskiy/marathon/config/serialization/ConfigurationFactory.kt

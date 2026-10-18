@@ -36,4 +36,5 @@ data class HtmlShortTest(
     @SerializedName("has_screenshot") val hasScreenshot: Boolean,
     /** Same shape as [hasScreenshot], for captured video attachments. */
     @SerializedName("has_video") val hasVideo: Boolean,
+    @SerializedName("tags") val tags: List<HtmlTag> = emptyList(),
 )

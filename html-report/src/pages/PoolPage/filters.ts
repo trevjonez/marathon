@@ -19,7 +19,7 @@ export const SORT_OPTIONS: Array<{ value: SortKey; label: string }> = [
   { value: 'attempts', label: 'Attempts (most first)' },
 ];
 
-export type GroupKey = 'none' | 'device' | 'os_major' | 'class' | 'status' | 'batch';
+export type GroupKey = 'none' | 'device' | 'os_major' | 'class' | 'status' | 'batch' | `tag:${string}`;
 
 export const GROUP_OPTIONS: Array<{ value: GroupKey; label: string }> = [
   { value: 'none', label: 'No grouping' },
@@ -46,6 +46,26 @@ export interface PoolFilters {
   maxDurationMs: number | null;
   sort: SortKey;
   group: GroupKey;
+  /** Selected values per tag group, from `tag.<group>=a,b` hash keys. */
+  tags: Map<string, Set<string>>;
+}
+
+export const TAG_PARAM_PREFIX = 'tag.';
+export const UNTAGGED_LABEL = '(untagged)';
+
+/** Tag groups present in the pool, each with its sorted distinct values. Groups are sorted by name. */
+export function tagGroups(tests: HtmlShortTest[]): Array<{ group: string; values: string[] }> {
+  const byGroup = new Map<string, Set<string>>();
+  for (const t of tests) {
+    for (const tag of t.tags ?? []) {
+      const values = byGroup.get(tag.group) ?? new Set<string>();
+      values.add(tag.value);
+      byGroup.set(tag.group, values);
+    }
+  }
+  return [...byGroup.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([group, values]) => ({ group, values: [...values].sort() }));
 }
 
 export function readFilters(params: URLSearchParams): PoolFilters {
@@ -66,6 +86,12 @@ export function readFilters(params: URLSearchParams): PoolFilters {
     maxDurationMs: numOrNull(params.get('maxMs')),
     sort: (params.get('sort') as SortKey) || 'name',
     group: (params.get('group') as GroupKey) || 'none',
+    tags: new Map(
+      [...params.keys()]
+        .filter((k) => k.startsWith(TAG_PARAM_PREFIX) && k.length > TAG_PARAM_PREFIX.length)
+        .map((k) => [k.slice(TAG_PARAM_PREFIX.length), toSet(params.get(k))] as const)
+        .filter(([, values]) => values.size > 0),
+    ),
   };
 }
 
@@ -88,6 +114,10 @@ export function applyFilters(pool: HtmlPoolSummary, filters: PoolFilters): HtmlS
       if (!hits) return false;
     }
     if (filters.manufacturers.size && !filters.manufacturers.has(t.device.manufacturer)) return false;
+    // Values within a group are OR'd, groups are AND'd, like the device/OS filters
+    for (const [group, values] of filters.tags) {
+      if (!(t.tags ?? []).some((tag) => tag.group === group && values.has(tag.value))) return false;
+    }
 
     if (filters.q) {
       const hay = `${t.package_name}.${t.class_name}.${t.name}`;
@@ -149,14 +179,28 @@ export function groupTests(tests: HtmlShortTest[], group: GroupKey): Array<{ lab
   if (group === 'none') return [{ label: '', items: tests }];
   const buckets = new Map<string, HtmlShortTest[]>();
   for (const test of tests) {
-    const key = bucketKey(test, group);
-    const bucket = buckets.get(key) ?? [];
-    bucket.push(test);
-    buckets.set(key, bucket);
+    for (const key of bucketKeys(test, group)) {
+      const bucket = buckets.get(key) ?? [];
+      bucket.push(test);
+      buckets.set(key, bucket);
+    }
   }
   return [...buckets.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
+    .sort(([a], [b]) => (a === UNTAGGED_LABEL ? 1 : b === UNTAGGED_LABEL ? -1 : a.localeCompare(b)))
     .map(([label, items]) => ({ label, items }));
+}
+
+/**
+ * A test with several values in the grouped tag group (e.g. a class-level and a method-level team) is listed under
+ * each of them, so bucket counts can add up to more than the number of tests.
+ */
+function bucketKeys(test: HtmlShortTest, group: GroupKey): string[] {
+  if (group.startsWith('tag:')) {
+    const tagGroup = group.slice('tag:'.length);
+    const values = [...new Set((test.tags ?? []).filter((t) => t.group === tagGroup).map((t) => t.value))];
+    return values.length ? values : [UNTAGGED_LABEL];
+  }
+  return [bucketKey(test, group)];
 }
 
 function bucketKey(test: HtmlShortTest, group: GroupKey): string {
