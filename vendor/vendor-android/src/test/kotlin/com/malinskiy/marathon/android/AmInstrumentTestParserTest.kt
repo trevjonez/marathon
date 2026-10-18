@@ -1,5 +1,6 @@
 package com.malinskiy.marathon.android
 
+import com.malinskiy.marathon.analytics.internal.pub.Track
 import com.malinskiy.marathon.android.adam.AmInstrumentTestParser
 import com.malinskiy.marathon.config.Configuration
 import com.malinskiy.marathon.config.vendor.VendorConfiguration
@@ -22,6 +23,7 @@ class AmInstrumentTestParserTest {
             extraApplicationsOutput = emptyList(),
             testParserConfiguration = testParserConfiguration,
         ),
+        track = Track(),
     )
 
     @Test

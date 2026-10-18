@@ -12,7 +12,15 @@ import kotlinx.coroutines.Dispatchers
 import java.time.Clock
 
 object TestDeviceFactory {
-    fun create(client: AndroidDebugBridgeClient, configuration: Configuration, logcatManager: LogcatManager): AndroidDevice {
+    fun create(client: AndroidDebugBridgeClient, configuration: Configuration, logcatManager: LogcatManager): AndroidDevice =
+        createAdam(client, configuration, logcatManager)
+
+    fun createAdam(
+        client: AndroidDebugBridgeClient,
+        configuration: Configuration,
+        logcatManager: LogcatManager,
+        track: Track = Track(),
+    ): AdamAndroidDevice {
         return AdamAndroidDevice(
             client = client,
             deviceStateTracker = DeviceStateTracker(),
@@ -22,7 +30,7 @@ object TestDeviceFactory {
             configuration,
             configuration.vendorConfiguration as VendorConfiguration.AndroidConfiguration,
             AndroidTestBundleIdentifier(),
-            Track(),
+            track,
             SystemTimer(Clock.systemDefaultZone()),
             SerialStrategy.AUTOMATIC
         )

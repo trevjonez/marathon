@@ -72,6 +72,8 @@ import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.newFixedThreadPoolContext
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.supervisorScope
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.awt.image.BufferedImage
 import java.io.File
@@ -487,13 +489,32 @@ class AdamAndroidDevice(
         }
     }
 
+    private val installMutex = Mutex()
+    private var installed = false
+
+    /**
+     * Installs every test bundle at most once for this device instance. Concurrent callers (the provider's eager
+     * install, the remote test parser, [prepare]) wait for the in-flight install instead of starting another one.
+     * A failed install is not remembered, so the next caller tries again.
+     *
+     * A reconnect produces a new [AdamAndroidDevice], so a device that comes back always gets a fresh install.
+     */
+    suspend fun ensureInstalled(configuration: Configuration) {
+        installMutex.withLock {
+            if (installed) return
+            track.trackDevicePreparing(this) {
+                AndroidAppInstaller(configuration).prepareInstallation(this)
+            }
+            installed = true
+        }
+    }
+
     override suspend fun prepare(configuration: Configuration) {
         async(coroutineContext) {
             supervisorScope {
+                ensureInstalled(configuration)
 
                 track.trackDevicePreparing(this@AdamAndroidDevice) {
-                    AndroidAppInstaller(configuration).prepareInstallation(this@AdamAndroidDevice)
-
                     fileManager.removeRemoteDirectory()
                     fileManager.createRemoteDirectory()
 

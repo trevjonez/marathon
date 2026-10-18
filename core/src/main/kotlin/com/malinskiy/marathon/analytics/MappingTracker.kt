@@ -6,6 +6,7 @@ import com.malinskiy.marathon.analytics.internal.sub.DeviceDisconnectedEvent
 import com.malinskiy.marathon.analytics.internal.sub.DevicePreparingEvent
 import com.malinskiy.marathon.analytics.internal.sub.DeviceProviderPreparingEvent
 import com.malinskiy.marathon.analytics.internal.sub.TestEvent
+import com.malinskiy.marathon.analytics.internal.sub.TestParsingEvent
 import com.malinskiy.marathon.analytics.internal.sub.TrackerInternal
 import com.malinskiy.marathon.device.DeviceInfo
 import com.malinskiy.marathon.device.DevicePoolId
@@ -27,6 +28,10 @@ class MappingTracker(private val trackerInternal: TrackerInternal) : Tracker {
 
     override fun devicePreparing(serialNumber: String, startTime: Instant, finishTime: Instant) {
         trackerInternal.track(DevicePreparingEvent(startTime, finishTime, serialNumber))
+    }
+
+    override fun testParsing(serialNumber: String, startTime: Instant, finishTime: Instant) {
+        trackerInternal.track(TestParsingEvent(startTime, finishTime, serialNumber))
     }
 
     override fun test(poolId: DevicePoolId, device: DeviceInfo, testResult: TestResult, final: Boolean) {

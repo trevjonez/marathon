@@ -26,7 +26,11 @@ class TimelineSummaryProvider {
             )
         }
 
-        return (testData + preparingData + providerData).sortedBy { it.startDate }
+        val parsingData = report.testParsingEvents.map {
+            Data(MetricType.TEST_PARSING.name, MetricType.TEST_PARSING, it.start.toEpochMilli(), it.finish.toEpochMilli(), 0.0, 0.0)
+        }
+
+        return (testData + preparingData + providerData + parsingData).sortedBy { it.startDate }
     }
 
     private fun convertToData(event: TestEvent): Data {
@@ -91,8 +95,10 @@ class TimelineSummaryProvider {
         val devicePreparingEvent = executionReport.devicePreparingEvents.groupBy { it.serialNumber }
         val deviceProviderPreparingEvents = executionReport.deviceProviderPreparingEvent.groupBy { it.serialNumber }
         val testEvents = executionReport.testEvents.groupBy { it.device.serialNumber }
+        val testParsingEvents = executionReport.testParsingEvents.groupBy { it.serialNumber }
 
-        val keys = (deviceConnectedEvents.keys + devicePreparingEvent.keys + deviceProviderPreparingEvents.keys + testEvents.keys)
+        val keys = (deviceConnectedEvents.keys + devicePreparingEvent.keys + deviceProviderPreparingEvents.keys + testEvents.keys +
+            testParsingEvents.keys)
 
         val reports = keys.map { key ->
             key to ExecutionReport(
@@ -100,7 +106,8 @@ class TimelineSummaryProvider {
                 deviceDisconnectedEvents = deviceDisconnectedEvents[key] ?: emptyList(),
                 devicePreparingEvents = devicePreparingEvent[key] ?: emptyList(),
                 deviceProviderPreparingEvent = deviceProviderPreparingEvents[key] ?: emptyList(),
-                testEvents = testEvents[key] ?: emptyList()
+                testEvents = testEvents[key] ?: emptyList(),
+                testParsingEvents = testParsingEvents[key] ?: emptyList(),
             )
         }.toMap()
 

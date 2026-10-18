@@ -15,6 +15,11 @@ interface Tracker {
     fun devicePreparing(serialNumber: String, startTime: Instant, finishTime: Instant)
 
     /**
+     * On-device test discovery by a remote test parser, one call per attempt (including failed ones)
+     */
+    fun testParsing(serialNumber: String, startTime: Instant, finishTime: Instant) = Unit
+
+    /**
      * @param final signals if the test execution status is final, i.e. no more retries will happen
      *              reporters such as jUnit should handle this as an indication to save report
      */
