@@ -7,6 +7,7 @@ import com.malinskiy.adam.server.junit5.AdbTest
 import com.malinskiy.adam.server.stub.AndroidDebugBridgeServer
 import com.malinskiy.adam.server.stub.dsl.DeviceExpectation
 import com.malinskiy.marathon.analytics.internal.pub.Track
+import com.malinskiy.marathon.device.DevicePhase
 import com.malinskiy.marathon.exceptions.DeviceSetupException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -51,6 +52,10 @@ class AdamAndroidDeviceInstallTest {
         }
 
         tracker.devicePreparing.size shouldBeEqualTo 1
+        tracker.phases.map { Triple(it.phase, it.label, it.failed) } shouldBeEqualTo listOf(
+            Triple(DevicePhase.INSTALL, "install com.example", false),
+            Triple(DevicePhase.INSTALL, "install com.example.test", false),
+        )
     }
 
     @Test
@@ -90,6 +95,10 @@ class AdamAndroidDeviceInstallTest {
             device.setup()
             assertThrows<DeviceSetupException> { device.ensureInstalled(configuration) }
             tracker.devicePreparing.size shouldBeEqualTo 0
+            // One phase for all three attempts, marked failed
+            tracker.phases.map { Triple(it.phase, it.label, it.failed) } shouldBeEqualTo listOf(
+                Triple(DevicePhase.INSTALL, "install com.example", true),
+            )
 
             device.ensureInstalled(configuration)
         }
@@ -118,6 +127,7 @@ class AdamAndroidDeviceInstallTest {
 
         // One span for the install, one for the reset; the install isn't repeated
         tracker.devicePreparing.size shouldBeEqualTo 2
+        tracker.phases.map { it.phase } shouldBeEqualTo listOf(DevicePhase.INSTALL, DevicePhase.INSTALL, DevicePhase.DEVICE_RESET)
     }
 
     @Test

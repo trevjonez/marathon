@@ -30,7 +30,10 @@ import com.malinskiy.marathon.test.toTestName
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withTimeoutOrNull
+import com.malinskiy.marathon.device.DevicePhase
+import com.malinskiy.marathon.android.phase
 import java.io.IOException
+import java.time.Instant
 
 const val ERROR_STUCK = "Test got stuck. You can increase the timeout in settings if it's too strict"
 
@@ -67,9 +70,15 @@ class AndroidDeviceTestRunner(private val device: AdamAndroidDevice, private val
                 withTimeoutOrNull(configuration.testBatchTimeoutMillis) {
                     notifyIgnoredTest(ignoredTests, listener)
                     clearData(configuration, androidConfiguration, info)
-                    listener.beforeTestRun(info)
+                    device.phase(DevicePhase.BEFORE_RUN, "before run") {
+                        prepareRun(configuration, androidConfiguration, info)
+                        listener.beforeTestRun(info)
+                    }
 
                     logger.debug { "Running ${runnerRequest.cmd}" }
+                    // From launching am instrument until its first test starts: process start and Application setup
+                    val instrumentationStart = Instant.now()
+                    var instrumentationStarted = false
                     val localChannel = device.executeTestRequest(runnerRequest)
                     channel = localChannel
 
@@ -81,8 +90,16 @@ class AndroidDeviceTestRunner(private val device: AdamAndroidDevice, private val
                             listener.testRunFailed(ERROR_STUCK)
                             return@withTimeoutOrNull
                         } else {
+                            if (!instrumentationStarted && update.any { it is TestStarted }) {
+                                instrumentationStarted = true
+                                device.recordPhase(DevicePhase.INSTRUMENTATION_START, "start instrumentation", instrumentationStart, Instant.now(), false)
+                            }
                             processEvents(update, listener)
                         }
+                    }
+                    if (!instrumentationStarted) {
+                        // Never reached a test: the whole run was startup, and it didn't succeed
+                        device.recordPhase(DevicePhase.INSTRUMENTATION_START, "start instrumentation", instrumentationStart, Instant.now(), true)
                     }
 
                     logger.debug { "Execution finished" }
@@ -93,7 +110,7 @@ class AndroidDeviceTestRunner(private val device: AdamAndroidDevice, private val
                 logger.error(e) { errorMessage }
                 listener.testRunFailed(errorMessage)
             } finally {
-                listener.afterTestRun()
+                device.phase(DevicePhase.AFTER_RUN, "after run") { listener.afterTestRun() }
                 channel?.cancel(null)
             }
         }
@@ -137,15 +154,27 @@ class AndroidDeviceTestRunner(private val device: AdamAndroidDevice, private val
         info: InstrumentationInfo
     ) {
         if (androidConfiguration.applicationPmClear) {
-            device.clearPackage(info.applicationPackage)?.output?.trim()?.also {
-                logger.debug { "Package ${info.applicationPackage} cleared: $it" }
+            device.phase(DevicePhase.CLEAR_DATA, "pm clear ${info.applicationPackage}") {
+                device.clearPackage(info.applicationPackage)?.output?.trim()?.also {
+                    logger.debug { "Package ${info.applicationPackage} cleared: $it" }
+                }
             }
         }
         if (androidConfiguration.testApplicationPmClear) {
-            device.clearPackage(info.instrumentationPackage)?.output?.trim()?.also {
-                logger.debug { "Package ${info.instrumentationPackage} cleared: $it" }
+            device.phase(DevicePhase.CLEAR_DATA, "pm clear ${info.instrumentationPackage}") {
+                device.clearPackage(info.instrumentationPackage)?.output?.trim()?.also {
+                    logger.debug { "Package ${info.instrumentationPackage} cleared: $it" }
+                }
             }
         }
+    }
+
+    /** Storage grants and the coverage directory the run needs, done after clearing since `pm clear` would undo them. */
+    private suspend fun prepareRun(
+        configuration: Configuration,
+        androidConfiguration: VendorConfiguration.AndroidConfiguration,
+        info: InstrumentationInfo
+    ) {
         if (androidConfiguration.fileSyncConfiguration.pull.any { it.pathRoot == PathRoot.EXTERNAL_STORAGE }) {
             when {
                 device.version.isGreaterOrEqualThan(30) -> {

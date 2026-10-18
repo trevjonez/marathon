@@ -36,6 +36,8 @@ import com.malinskiy.adam.request.testrunner.TestEvent
 import com.malinskiy.adam.request.testrunner.TestRunnerRequest
 import com.malinskiy.marathon.analytics.internal.pub.Track
 import com.malinskiy.marathon.android.AndroidAppInstaller
+import com.malinskiy.marathon.android.phase
+import com.malinskiy.marathon.device.DevicePhase
 import com.malinskiy.marathon.android.AndroidTestBundleIdentifier
 import com.malinskiy.marathon.android.BaseAndroidDevice
 import com.malinskiy.marathon.android.RemoteFileManager
@@ -515,10 +517,12 @@ class AdamAndroidDevice(
                 ensureInstalled(configuration)
 
                 track.trackDevicePreparing(this@AdamAndroidDevice) {
-                    fileManager.removeRemoteDirectory()
-                    fileManager.createRemoteDirectory()
+                    phase(DevicePhase.DEVICE_RESET, "reset output directory and logcat") {
+                        fileManager.removeRemoteDirectory()
+                        fileManager.createRemoteDirectory()
 
-                    clearLogcat()
+                        clearLogcat()
+                    }
                 }
             }
         }.await()

@@ -2,6 +2,7 @@ package com.malinskiy.marathon.analytics.internal.pub
 
 import com.malinskiy.marathon.device.Device
 import com.malinskiy.marathon.device.DeviceInfo
+import com.malinskiy.marathon.device.DevicePhase
 import com.malinskiy.marathon.device.DevicePoolId
 import com.malinskiy.marathon.execution.TestResult
 import java.io.File
@@ -26,6 +27,10 @@ class Track : Tracker {
 
     override fun testParsing(serialNumber: String, startTime: Instant, finishTime: Instant, logFile: File?, failed: Boolean) {
         delegates.forEach { it.testParsing(serialNumber, startTime, finishTime, logFile, failed) }
+    }
+
+    override fun devicePhase(serialNumber: String, phase: DevicePhase, label: String, startTime: Instant, finishTime: Instant, failed: Boolean) {
+        delegates.forEach { it.devicePhase(serialNumber, phase, label, startTime, finishTime, failed) }
     }
 
     override fun deviceConnected(poolId: DevicePoolId, device: DeviceInfo) {

@@ -10,6 +10,7 @@ class ExecutionReportGenerator(private val reporters: List<Reporter>) : TrackerI
     private val deviceProviderPreparingEvents: MutableList<DeviceProviderPreparingEvent> = Collections.synchronizedList(LinkedList())
     private val testEvents: MutableList<TestEvent> = Collections.synchronizedList(mutableListOf())
     private val testParsingEvents: MutableList<TestParsingEvent> = Collections.synchronizedList(mutableListOf())
+    private val devicePhaseEvents: MutableList<DevicePhaseEvent> = Collections.synchronizedList(mutableListOf())
 
     override fun track(event: Event) {
         when (event) {
@@ -19,6 +20,7 @@ class ExecutionReportGenerator(private val reporters: List<Reporter>) : TrackerI
             is DeviceProviderPreparingEvent -> deviceProviderPreparingEvents.add(event)
             is TestEvent -> testEvents.add(event)
             is TestParsingEvent -> testParsingEvents.add(event)
+            is DevicePhaseEvent -> devicePhaseEvents.add(event)
         }
     }
 
@@ -30,6 +32,7 @@ class ExecutionReportGenerator(private val reporters: List<Reporter>) : TrackerI
             deviceProviderPreparingEvents.sortedBy { it.start },
             testEvents.sortedBy { it.instant },
             testParsingEvents.sortedBy { it.start },
+            devicePhaseEvents.sortedBy { it.start },
         )
 
         for (reporter in reporters) {
