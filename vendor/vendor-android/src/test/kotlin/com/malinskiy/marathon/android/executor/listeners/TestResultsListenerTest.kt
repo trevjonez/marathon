@@ -24,6 +24,7 @@ import com.malinskiy.marathon.execution.TestBatchResults
 import com.malinskiy.marathon.execution.TestResult
 import com.malinskiy.marathon.execution.TestStatus
 import com.malinskiy.marathon.report.attachment.AttachmentProvider
+import com.malinskiy.marathon.test.MetaProperty
 import com.malinskiy.marathon.test.TestBatch
 import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
@@ -116,6 +117,41 @@ class TestResultsListenerTest {
             assertThat(result.uncompleted).containsOnly(
                 TestResult(test5.toTest(), device.toDeviceInfo(), batch.id, TestStatus.INCOMPLETE, 0, 0),
             )
+        }
+    }
+
+    @Test
+    fun `results carry the batch's test, keeping its parsed annotations`() {
+        val annotated = test1.toTest().copy(metaProperties = listOf(MetaProperty("com.example.Team", mapOf("ticket" to "T-1"))))
+        // Same class name as test1 but another package: must not be picked up for test1's result
+        val decoy = test1.toTest().copy(pkg = "com.other", metaProperties = listOf(MetaProperty("com.other.Decoy")))
+        val batch = TestBatch(listOf(decoy, annotated), UUID.randomUUID().toString())
+        val configuration = TestConfigurationFactory.create()
+        val device = TestDeviceFactory.create(client, configuration, mock())
+        val deferred = CompletableDeferred<TestBatchResults>()
+        val listener = TestResultsListener(batch, device, deferred, mock(), DevicePoolId("omni"), emptyList())
+
+        runBlocking {
+            server.multipleSessions {
+                serial("emulator-5554") {
+                    boot()
+                }
+                features("emulator-5554")
+            }
+
+            device.setup()
+            listener.apply {
+                beforeTestRun()
+                testRunStarted("testing", 1)
+                testStarted(test1)
+                testEnded(test1, emptyMap())
+                testRunEnded(1, emptyMap())
+                afterTestRun()
+            }
+
+            val result = deferred.await()
+            // Test equality ignores metaProperties, so compare them explicitly
+            assertThat(result.finished.map { it.test to it.test.metaProperties }).containsOnly(annotated to annotated.metaProperties)
         }
     }
 

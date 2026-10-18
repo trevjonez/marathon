@@ -148,7 +148,7 @@ class TestResultsListener(
 
     private fun Map.Entry<Test, TemporalTestResult>.toTestResult(device: Device): TestResult {
         val testInstanceFromBatch = testBatch.tests.find {
-            it.pkg == key.pkg && it.clazz == key.pkg && it.method == key.method
+            it.pkg == key.pkg && it.clazz == key.clazz && it.method == key.method
         }
         val test = key
         val attachments = attachmentCollector[test] ?: emptyList()
