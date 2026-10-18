@@ -26,6 +26,12 @@
     --tl-prepare: #6366f1;
     --tl-provider: #06b6d4;
     --tl-parsing: #ea580c;
+    --tl-phase-install: #2563eb;
+    --tl-phase-reset: #8b5cf6;
+    --tl-phase-clear: #0d9488;
+    --tl-phase-before: #64748b;
+    --tl-phase-instrumentation: #db2777;
+    --tl-phase-after: #a16207;
     --tl-axis: #64748b;
     --tl-grid: #e2e8f0;
     --tl-tooltip-bg: #ffffff;
@@ -45,6 +51,12 @@
     --tl-prepare: #818cf8;
     --tl-provider: #22d3ee;
     --tl-parsing: #fb923c;
+    --tl-phase-install: #60a5fa;
+    --tl-phase-reset: #a78bfa;
+    --tl-phase-clear: #2dd4bf;
+    --tl-phase-before: #94a3b8;
+    --tl-phase-instrumentation: #f472b6;
+    --tl-phase-after: #ca8a04;
     --tl-axis: #94a3b8;
     --tl-grid: #334155;
     --tl-tooltip-bg: #0f172a;
@@ -199,6 +211,24 @@
 }
 .bar-TEST_PARSING {
   background: var(--tl-parsing);
+}
+.bar-phase-INSTALL {
+  background: var(--tl-phase-install);
+}
+.bar-phase-DEVICE_RESET {
+  background: var(--tl-phase-reset);
+}
+.bar-phase-CLEAR_DATA {
+  background: var(--tl-phase-clear);
+}
+.bar-phase-BEFORE_RUN {
+  background: var(--tl-phase-before);
+}
+.bar-phase-INSTRUMENTATION_START {
+  background: var(--tl-phase-instrumentation);
+}
+.bar-phase-AFTER_RUN {
+  background: var(--tl-phase-after);
 }
 /* A failed attempt keeps its own colour, striped with the failure colour so it reads at any bar width */
 .bar-failed {

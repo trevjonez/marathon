@@ -26,6 +26,10 @@ data class Data(
     val deviceSerial: String? = null,
     /** Test parsing bars: href of the attempt's log page, relative to the report root. */
     val logHref: String? = null,
-    /** Test parsing bars: the attempt failed. */
+    /** Test parsing and device phase bars: the step failed. */
     val failed: Boolean? = null,
+    /** Device phase bars: the DevicePhase name, e.g. INSTALL or CLEAR_DATA. [testName] holds the step's label. */
+    val phase: String? = null,
+    /** Device phase bars: the step repeats around every batch rather than happening once at preparation. */
+    val betweenTests: Boolean? = null,
 )

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
-import { render, screen, fireEvent, act } from '@testing-library/react';
+import { render, screen, fireEvent, act, within } from '@testing-library/react';
 import { TimelineChart } from './TimelineChart';
 import type { TimelineData, TimelineDevice, TimelineExecutionResult } from '../types/timeline';
 
@@ -376,5 +376,100 @@ describe('TimelineChart test parsing', () => {
     const text = document.querySelector('.timeline-tooltip')?.textContent ?? '';
     expect(text).toContain('TEST_PARSING');
     expect(text).toContain('5000 ms');
+  });
+});
+
+describe('TimelineChart device phases', () => {
+  function phaseBar(phase: TimelineData['phase'], label: string, startOffsetMs: number, extra: Partial<TimelineData> = {}): TimelineData {
+    return {
+      testName: label,
+      metricType: 'DEVICE_PHASE',
+      startDate: T0 + startOffsetMs,
+      endDate: T0 + startOffsetMs + 1_000,
+      expectedValue: 0,
+      variance: 0,
+      phase,
+      betweenTests: !['INSTALL', 'DEVICE_RESET'].includes(phase ?? ''),
+      ...extra,
+    };
+  }
+  function phaseFixture() {
+    return timeline([
+      {
+        serial: 'dev-a',
+        data: [
+          phaseBar('INSTALL', 'install com.example', 0),
+          phaseBar('INSTALL', 'install com.example.test', 1_000),
+          phaseBar('DEVICE_RESET', 'reset output directory and logcat', 2_000),
+          phaseBar('CLEAR_DATA', 'pm clear com.example', 3_000, { failed: true }),
+          phaseBar('INSTRUMENTATION_START', 'start instrumentation', 4_000),
+          testBar('Suite.one', 5_000),
+        ],
+      },
+    ]);
+  }
+  const phaseBars = (c: HTMLElement) => bars(c).filter((b) => b.classList.contains('bar-DEVICE_PHASE'));
+  const phaseClasses = (c: HTMLElement) =>
+    phaseBars(c).map((b) => [...b.classList].find((cls) => cls.startsWith('bar-phase-')));
+
+  it('draws each phase with its own class', () => {
+    const { container } = render(<TimelineChart data={phaseFixture()} />);
+    expect(phaseClasses(container)).toEqual([
+      'bar-phase-INSTALL',
+      'bar-phase-INSTALL',
+      'bar-phase-DEVICE_RESET',
+      'bar-phase-CLEAR_DATA',
+      'bar-phase-INSTRUMENTATION_START',
+    ]);
+    expect(phaseBars(container)[3]!.classList.contains('bar-failed')).toBe(true);
+  });
+
+  it('legends only the phases the run has', () => {
+    const { container } = render(<TimelineChart data={phaseFixture()} />);
+    const swatches = [...container.querySelectorAll('.timeline-legend .timeline-legend__swatch')]
+      .map((s) => [...s.classList].find((cls) => cls.startsWith('bar-phase-')))
+      .filter(Boolean);
+    expect(swatches).toEqual([
+      'bar-phase-INSTALL',
+      'bar-phase-DEVICE_RESET',
+      'bar-phase-CLEAR_DATA',
+      'bar-phase-INSTRUMENTATION_START',
+    ]);
+  });
+
+  it('tooltip names the phase and the step', () => {
+    const { container } = render(<TimelineChart data={phaseFixture()} />);
+    fireEvent.mouseEnter(phaseBars(container)[3]!, { clientX: 1, clientY: 1 });
+    const text = document.querySelector('.timeline-tooltip')?.textContent ?? '';
+    expect(text).toContain('pm clear com.example');
+    expect(text).toContain('Clear data');
+    expect(text).toContain('failed');
+  });
+
+  it('hiding between-test steps keeps installs, resets and tests, and is kept in the hash', () => {
+    const { container } = render(<TimelineChart data={phaseFixture()} />);
+    fireEvent.click(within(screen.getByRole('group', { name: 'Between-test steps' })).getByRole('button', { name: 'hidden' }));
+    expect(phaseClasses(container)).toEqual(['bar-phase-INSTALL', 'bar-phase-INSTALL', 'bar-phase-DEVICE_RESET']);
+    expect(bars(container).some((b) => b.getAttribute('aria-label')?.startsWith('Suite.one'))).toBe(true);
+    expect(location.hash).toContain('tl_steps=hide');
+
+    fireEvent.click(within(screen.getByRole('group', { name: 'Between-test steps' })).getByRole('button', { name: 'shown' }));
+    expect(phaseBars(container)).toHaveLength(5);
+    expect(location.hash).not.toContain('tl_steps');
+  });
+
+  it('restores hidden steps from a shared link', () => {
+    history.replaceState(null, '', '#?tl_steps=hide');
+    const { container } = render(<TimelineChart data={phaseFixture()} />);
+    expect(phaseBars(container)).toHaveLength(3);
+  });
+
+  it('has no toggle when the run has no between-test steps', () => {
+    render(
+      <TimelineChart
+        data={timeline([{ serial: 'dev-a', data: [phaseBar('INSTALL', 'install', 0), testBar('Suite.one', 5_000)] }])}
+      />,
+    );
+    expect(screen.queryByRole('group', { name: 'Between-test steps' })).toBeNull();
   });
 });

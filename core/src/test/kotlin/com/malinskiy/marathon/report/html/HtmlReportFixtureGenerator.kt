@@ -14,6 +14,8 @@ import com.malinskiy.marathon.config.OutputConfiguration
 import com.malinskiy.marathon.config.vendor.VendorConfiguration
 import com.malinskiy.marathon.device.DeviceFeature
 import com.malinskiy.marathon.device.DeviceInfo
+import com.malinskiy.marathon.device.DevicePhase
+import com.malinskiy.marathon.analytics.internal.sub.DevicePhaseEvent
 import com.malinskiy.marathon.device.DevicePoolId
 import com.malinskiy.marathon.device.NetworkState
 import com.malinskiy.marathon.device.OperatingSystem
@@ -315,6 +317,7 @@ class HtmlReportFixtureGenerator {
         val providerEvents = mutableListOf<DeviceProviderPreparingEvent>()
         val prepareEvents = mutableListOf<DevicePreparingEvent>()
         val testEvents = mutableListOf<TestEvent>()
+        val phaseEvents = mutableListOf<DevicePhaseEvent>()
 
         pools.forEachIndexed { poolIdx, poolName ->
             val poolId = DevicePoolId(poolName)
@@ -342,6 +345,14 @@ class HtmlReportFixtureGenerator {
                 prepareEvents += DevicePreparingEvent(
                     Instant.ofEpochMilli(prepareStart), Instant.ofEpochMilli(prepareEnd), device.serialNumber,
                 )
+                // Split preparation into its steps by fixed fractions, without drawing from rng, so the rest of the
+                // fixture stays the same
+                val span = prepareEnd - prepareStart
+                val appInstalled = prepareStart + span * 60 / 100
+                val testInstalled = prepareStart + span * 85 / 100
+                phaseEvents += phaseEvent(device, DevicePhase.INSTALL, "install com.example.app", prepareStart, appInstalled)
+                phaseEvents += phaseEvent(device, DevicePhase.INSTALL, "install com.example.app.test", appInstalled, testInstalled)
+                phaseEvents += phaseEvent(device, DevicePhase.DEVICE_RESET, "reset output directory and logcat", testInstalled, prepareEnd)
                 readyAt[device] = prepareEnd
             }
 
@@ -421,6 +432,11 @@ class HtmlReportFixtureGenerator {
                         ),
                         final = attemptIdx == spec.statusesInOrder.lastIndex,
                     )
+                    // Between-test steps sit in the gap the inter-test spacing leaves (at least 6s)
+                    phaseEvents += phaseEvent(device, DevicePhase.CLEAR_DATA, "pm clear com.example.app", start - 2_800, start - 2_000)
+                    phaseEvents += phaseEvent(device, DevicePhase.BEFORE_RUN, "before run", start - 2_000, start - 1_700)
+                    phaseEvents += phaseEvent(device, DevicePhase.INSTRUMENTATION_START, "start instrumentation", start - 1_700, start)
+                    phaseEvents += phaseEvent(device, DevicePhase.AFTER_RUN, "after run", end, end + 400)
                     queueCursor[device] = end + INTER_TEST_GAP_MS + rng.nextLong(-4_000L, 4_000L)
                 }
             }
@@ -432,8 +448,12 @@ class HtmlReportFixtureGenerator {
             devicePreparingEvents = prepareEvents,
             deviceProviderPreparingEvent = providerEvents,
             testEvents = testEvents,
+            devicePhaseEvents = phaseEvents.sortedBy { it.start },
         )
     }
+
+    private fun phaseEvent(device: DeviceInfo, phase: DevicePhase, label: String, start: Long, end: Long) =
+        DevicePhaseEvent(Instant.ofEpochMilli(start), Instant.ofEpochMilli(end), device.serialNumber, phase, label)
 
     /**
      * Weighted duration sampler shaped to match what a real UI suite emits:
