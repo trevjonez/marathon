@@ -412,7 +412,10 @@ describe('TimelineChart device phases', () => {
   const phaseClasses = (c: HTMLElement) =>
     phaseBars(c).map((b) => [...b.classList].find((cls) => cls.startsWith('bar-phase-')));
 
+  const showSteps = () => history.replaceState(null, '', '#?tl_steps=show');
+
   it('draws each phase with its own class', () => {
+    showSteps();
     const { container } = render(<TimelineChart data={phaseFixture()} />);
     expect(phaseClasses(container)).toEqual([
       'bar-phase-INSTALL',
@@ -424,7 +427,8 @@ describe('TimelineChart device phases', () => {
     expect(phaseBars(container)[3]!.classList.contains('bar-failed')).toBe(true);
   });
 
-  it('legends only the phases the run has', () => {
+  it('legends only the phases that are drawn', () => {
+    showSteps();
     const { container } = render(<TimelineChart data={phaseFixture()} />);
     const swatches = [...container.querySelectorAll('.timeline-legend .timeline-legend__swatch')]
       .map((s) => [...s.classList].find((cls) => cls.startsWith('bar-phase-')))
@@ -438,6 +442,7 @@ describe('TimelineChart device phases', () => {
   });
 
   it('tooltip names the phase and the step', () => {
+    showSteps();
     const { container } = render(<TimelineChart data={phaseFixture()} />);
     fireEvent.mouseEnter(phaseBars(container)[3]!, { clientX: 1, clientY: 1 });
     const text = document.querySelector('.timeline-tooltip')?.textContent ?? '';
@@ -446,22 +451,37 @@ describe('TimelineChart device phases', () => {
     expect(text).toContain('failed');
   });
 
-  it('hiding between-test steps keeps installs, resets and tests, and is kept in the hash', () => {
+  it('hides between-test steps by default, keeping installs, resets and tests', () => {
     const { container } = render(<TimelineChart data={phaseFixture()} />);
-    fireEvent.click(within(screen.getByRole('group', { name: 'Between-test steps' })).getByRole('button', { name: 'hidden' }));
     expect(phaseClasses(container)).toEqual(['bar-phase-INSTALL', 'bar-phase-INSTALL', 'bar-phase-DEVICE_RESET']);
     expect(bars(container).some((b) => b.getAttribute('aria-label')?.startsWith('Suite.one'))).toBe(true);
-    expect(location.hash).toContain('tl_steps=hide');
+    expect(
+      within(screen.getByRole('group', { name: 'Between-test steps' })).getByRole('button', { name: 'hidden' }),
+    ).toHaveAttribute('aria-pressed', 'true');
+  });
 
+  it('showing them is kept in the hash, and hiding again clears it', () => {
+    const { container } = render(<TimelineChart data={phaseFixture()} />);
     fireEvent.click(within(screen.getByRole('group', { name: 'Between-test steps' })).getByRole('button', { name: 'shown' }));
     expect(phaseBars(container)).toHaveLength(5);
+    expect(location.hash).toContain('tl_steps=show');
+
+    fireEvent.click(within(screen.getByRole('group', { name: 'Between-test steps' })).getByRole('button', { name: 'hidden' }));
+    expect(phaseBars(container)).toHaveLength(3);
     expect(location.hash).not.toContain('tl_steps');
   });
 
-  it('restores hidden steps from a shared link', () => {
-    history.replaceState(null, '', '#?tl_steps=hide');
+  it('restores shown steps from a shared link', () => {
+    showSteps();
     const { container } = render(<TimelineChart data={phaseFixture()} />);
-    expect(phaseBars(container)).toHaveLength(3);
+    expect(phaseBars(container)).toHaveLength(5);
+  });
+
+  it('hidden steps drop out of the legend', () => {
+    const { container } = render(<TimelineChart data={phaseFixture()} />);
+    const swatches = [...container.querySelectorAll('.timeline-legend .timeline-legend__swatch')].map((sw) => sw.className);
+    expect(swatches.some((c) => c.includes('bar-phase-CLEAR_DATA') || c.includes('bar-phase-INSTRUMENTATION_START'))).toBe(false);
+    expect(swatches.some((c) => c.includes('bar-phase-INSTALL'))).toBe(true);
   });
 
   it('has no toggle when the run has no between-test steps', () => {
@@ -471,5 +491,44 @@ describe('TimelineChart device phases', () => {
       />,
     );
     expect(screen.queryByRole('group', { name: 'Between-test steps' })).toBeNull();
+  });
+});
+
+describe('TimelineChart legend', () => {
+  const legendLabels = (c: HTMLElement) =>
+    [...c.querySelectorAll('.timeline-legend .timeline-legend__item')].map((i) => i.textContent);
+
+  it('only lists bar kinds the timeline draws', () => {
+    const { container } = render(
+      <TimelineChart data={timeline([{ serial: 'dev-a', data: [testBar('Suite.one', 0), testBar('Suite.two', 20_000)] }])} />,
+    );
+    expect(legendLabels(container)).toEqual(['Passed test']);
+  });
+
+  it('lists failures, prepare and provider init when present', () => {
+    const { container } = render(
+      <TimelineChart
+        data={timeline([
+          {
+            serial: 'dev-a',
+            data: [
+              deviceBar('DEVICE_PROVIDER_INIT', 0),
+              deviceBar('DEVICE_PREPARE', 1_000),
+              testBar('Suite.one', 10_000, { metricType: 'FAILURE' }),
+            ],
+          },
+        ])}
+      />,
+    );
+    expect(legendLabels(container)).toEqual(['Failed test', 'Device prepare', 'Provider init']);
+  });
+
+  it('an assumption failure shows the ignored / assumption entry', () => {
+    const { container } = render(
+      <TimelineChart
+        data={timeline([{ serial: 'dev-a', data: [testBar('Suite.one', 0, { metricType: 'ASSUMPTION_FAILURE' })] }])}
+      />,
+    );
+    expect(legendLabels(container)).toEqual(['Ignored / assumption']);
   });
 });

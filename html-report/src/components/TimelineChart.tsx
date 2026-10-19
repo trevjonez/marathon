@@ -144,12 +144,9 @@ export function TimelineChart({ data, onOpenTest, className }: TimelineChartProp
     return () => ro.disconnect();
   }, [data]);
 
-  const hideSteps = params.get(STEPS_KEY) === 'hide';
+  // Between-test steps are many short bars that crowd the tests, so they're opt-in
+  const hideSteps = params.get(STEPS_KEY) !== 'show';
   const hasSteps = useMemo(() => data.measures.some((m) => m.data.some((d) => d.betweenTests)), [data.measures]);
-  const phasesPresent = useMemo(() => {
-    const present = new Set(data.measures.flatMap((m) => m.data.map((d) => d.phase)));
-    return PHASES.filter((p) => present.has(p.phase));
-  }, [data.measures]);
   const measures = useMemo(
     () =>
       data.measures
@@ -157,6 +154,15 @@ export function TimelineChart({ data, onOpenTest, className }: TimelineChartProp
         .filter((m) => m.data.length > 0),
     [data.measures, hideSteps],
   );
+  // Legend entries only for what's drawn, so hidden steps and absent bar kinds don't get one
+  const legend = useMemo(() => {
+    const types = new Set(measures.flatMap((m) => m.data.map((d) => d.metricType)));
+    const phases = new Set(measures.flatMap((m) => m.data.map((d) => d.phase)));
+    return {
+      types: LEGEND.filter((e) => types.has(e.type) || (e.type === 'IGNORED' && types.has('ASSUMPTION_FAILURE'))),
+      phases: PHASES.filter((p) => phases.has(p.phase)),
+    };
+  }, [measures]);
   const [domainStart, domainEnd] = useMemo(() => domainOf(measures), [measures]);
   const availableWidth = Math.max(MIN_CHART_WIDTH, chartWidth);
   const scale = useMemo(
@@ -186,8 +192,8 @@ export function TimelineChart({ data, onOpenTest, className }: TimelineChartProp
   const setShowSteps = useCallback(
     (show: boolean) =>
       updateHash((p) => {
-        if (show) p.delete(STEPS_KEY);
-        else p.set(STEPS_KEY, 'hide');
+        if (show) p.set(STEPS_KEY, 'show');
+        else p.delete(STEPS_KEY);
       }),
     [updateHash],
   );
@@ -243,7 +249,7 @@ export function TimelineChart({ data, onOpenTest, className }: TimelineChartProp
         steps={hasSteps ? { shown: !hideSteps, onChange: setShowSteps } : null}
       />
       <div className="rounded-md border border-surface-border">
-        <TimelineLegend phases={phasesPresent} />
+        <TimelineLegend types={legend.types} phases={legend.phases} />
         {emptyChart ? (
           <div className="p-6 text-sm text-slate-500 dark:text-slate-400">
             No timeline data recorded.
@@ -360,10 +366,16 @@ function domainOf(measures: TimelineMeasure[]): [Date, Date] {
   return [new Date(start), new Date(end)];
 }
 
-function TimelineLegend({ phases }: { phases: Array<{ phase: DevicePhase; label: string }> }) {
+function TimelineLegend({
+  types,
+  phases,
+}: {
+  types: Array<{ type: MetricType; label: string }>;
+  phases: Array<{ phase: DevicePhase; label: string }>;
+}) {
   return (
     <div className="timeline-legend px-3 py-2 border-b border-surface-border">
-      {LEGEND.map((entry) => (
+      {types.map((entry) => (
         <span key={entry.type} className="timeline-legend__item">
           <span className={`timeline-legend__swatch bar-${entry.type}`} />
           {entry.label}
