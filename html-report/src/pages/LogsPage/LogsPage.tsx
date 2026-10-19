@@ -57,7 +57,7 @@ export function LogsPage({ data }: { data: HtmlTestLogDetails }) {
     <AppShell
       title={`${data.display_name} — logs`}
       breadcrumbs={
-        data.kind === 'test-parsing' ? (
+        data.kind ? (
           <>
             <a href={paths.fromParsingLogToIndex}>Pools list</a> / {data.display_name} / Logs
           </>

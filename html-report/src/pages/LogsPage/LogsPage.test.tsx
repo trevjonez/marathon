@@ -63,6 +63,12 @@ describe('LogsPage for a test parsing log', () => {
     expect(screen.getByText(/Parsed with/).textContent).toMatch(/logcat/i);
   });
 
+  it('an install log gets the same device-log breadcrumbs', () => {
+    renderPage(details({ kind: 'install', pool_id: '', test_id: 'install', display_name: 'Installs on emulator-5554' }));
+    expect(crumbs()).toContainEqual(['Pools list', '../index.html']);
+    expect(crumbs().some(([text]) => text?.startsWith('Pool '))).toBe(false);
+  });
+
   it('keeps the pool and test breadcrumbs for a test log', () => {
     renderPage(details());
     expect(crumbs()).toContainEqual(['Pools list', '../../../../index.html']);

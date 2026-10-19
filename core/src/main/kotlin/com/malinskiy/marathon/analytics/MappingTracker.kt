@@ -37,8 +37,16 @@ class MappingTracker(private val trackerInternal: TrackerInternal) : Tracker {
         trackerInternal.track(TestParsingEvent(startTime, finishTime, serialNumber, logFile, failed))
     }
 
-    override fun devicePhase(serialNumber: String, phase: DevicePhase, label: String, startTime: Instant, finishTime: Instant, failed: Boolean) {
-        trackerInternal.track(DevicePhaseEvent(startTime, finishTime, serialNumber, phase, label, failed))
+    override fun devicePhase(
+        serialNumber: String,
+        phase: DevicePhase,
+        label: String,
+        startTime: Instant,
+        finishTime: Instant,
+        failed: Boolean,
+        logFile: File?,
+    ) {
+        trackerInternal.track(DevicePhaseEvent(startTime, finishTime, serialNumber, phase, label, failed, logFile))
     }
 
     override fun test(poolId: DevicePoolId, device: DeviceInfo, testResult: TestResult, final: Boolean) {

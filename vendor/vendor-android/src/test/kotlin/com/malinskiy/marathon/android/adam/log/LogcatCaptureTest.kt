@@ -9,7 +9,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.io.File
 
-class ParseLogcatCaptureTest {
+class LogcatCaptureTest {
     @TempDir
     lateinit var temp: File
 
@@ -32,7 +32,7 @@ class ParseLogcatCaptureTest {
 
     @Test
     fun `writes every line between start and close, under a header, into a new directory`() {
-        val capture = ParseLogcatCapture(producer, file)
+        val capture = LogcatCapture(producer, file)
         producer.emit(Log.LogLevel.INFO, "Before", "not captured")
         capture.start("attempt one")
         producer.emit(Log.LogLevel.DEBUG, "TestRunner", "started")
@@ -51,7 +51,7 @@ class ParseLogcatCaptureTest {
 
     @Test
     fun `keeps only the last warnings and errors for the failure summary`() {
-        val capture = ParseLogcatCapture(producer, file, maxProblemLines = 2)
+        val capture = LogcatCapture(producer, file, maxProblemLines = 2)
         capture.start("attempt")
         producer.emit(Log.LogLevel.WARN, "A", "one")
         producer.emit(Log.LogLevel.INFO, "B", "ignored")
@@ -63,8 +63,8 @@ class ParseLogcatCaptureTest {
 
     @Test
     fun `a later attempt on the same device appends`() {
-        ParseLogcatCapture(producer, file).apply { start("first"); producer.emit(Log.LogLevel.INFO, "T", "a"); close() }
-        ParseLogcatCapture(producer, file).apply { start("second"); producer.emit(Log.LogLevel.INFO, "T", "b"); close() }
+        LogcatCapture(producer, file).apply { start("first"); producer.emit(Log.LogLevel.INFO, "T", "a"); close() }
+        LogcatCapture(producer, file).apply { start("second"); producer.emit(Log.LogLevel.INFO, "T", "b"); close() }
         file.readLines().filter { it.startsWith("=====") }.map { it.substringAfterLast(' ', "").let { _ -> it.contains("first") to it.contains("second") } } shouldBeEqualTo
             listOf(true to false, false to true)
         file.readLines().filterNot { it.startsWith("=====") }.map { it.substringAfterLast(": ") } shouldBeEqualTo listOf("a", "b")
@@ -72,7 +72,7 @@ class ParseLogcatCaptureTest {
 
     @Test
     fun `closing twice is harmless`() {
-        val capture = ParseLogcatCapture(producer, file)
+        val capture = LogcatCapture(producer, file)
         capture.start("attempt")
         capture.close()
         capture.close()

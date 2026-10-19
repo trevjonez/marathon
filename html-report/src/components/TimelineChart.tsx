@@ -518,12 +518,12 @@ function TimelineRow({
         const failedClass = point.failed ? ' bar-failed' : '';
         const phaseClass = point.phase ? ` bar-phase-${point.phase}` : '';
         if (point.logHref) {
-          // Remote test parsing: opens the device log captured for the attempt
+          // Test parsing and installs: opens the device log captured during the step
           return (
             <a
               key={i}
               href={point.logHref}
-              className={`bar bar-${point.metricType} bar-clickable${failedClass}`}
+              className={`bar bar-${point.metricType}${phaseClass} bar-clickable${failedClass}`}
               style={barStyle}
               aria-label={`${point.testName}${point.failed ? ' (failed)' : ''} — open device log`}
               {...commonHandlers}

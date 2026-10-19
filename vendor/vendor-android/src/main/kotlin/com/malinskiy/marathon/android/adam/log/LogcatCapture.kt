@@ -7,11 +7,11 @@ import java.io.FileWriter
 import java.time.Instant
 
 /**
- * Writes a device's full logcat to [file] while remote test parsing runs on it. Attempts append to the same file under
- * a header, so a device that parses twice (listener override retry) keeps both windows. Warnings and above are also kept
- * in memory so a failure can be summarised in the runner log without opening the file.
+ * Writes a device's full logcat to [file] for the window between [start] and [close], e.g. one remote test parsing
+ * attempt or one package install. Windows append to the same file under a header, so a device's attempts stay together.
+ * Warnings and above are also kept in memory so a failure can be summarised in the runner log without opening the file.
  */
-class ParseLogcatCapture(
+class LogcatCapture(
     private val producer: LogcatProducer,
     val file: File,
     private val maxProblemLines: Int = 50,

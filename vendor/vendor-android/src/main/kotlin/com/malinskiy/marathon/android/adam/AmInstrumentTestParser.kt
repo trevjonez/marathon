@@ -31,7 +31,7 @@ import com.malinskiy.marathon.log.MarathonLogging
 import com.malinskiy.marathon.test.Test
 import kotlinx.coroutines.NonCancellable.isActive
 import kotlinx.coroutines.withTimeoutOrNull
-import com.malinskiy.marathon.android.adam.log.ParseLogcatCapture
+import com.malinskiy.marathon.android.adam.log.LogcatCapture
 import com.malinskiy.marathon.extension.escape
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
@@ -76,7 +76,7 @@ class AmInstrumentTestParser(
         // Shared with the device's own preparation, so the scheduler doesn't reinstall on the parsing device
         adamDevice.ensureInstalled(configuration)
 
-        val capture = ParseLogcatCapture(adamDevice, File(configuration.outputDir, "test-parsing/${adamDevice.serialNumber.escape()}.log"))
+        val capture = LogcatCapture(adamDevice, File(configuration.outputDir, "test-parsing/${adamDevice.serialNumber.escape()}.log"))
         capture.start("test parsing on ${adamDevice.serialNumber}")
         try {
             track.trackTestParsing(adamDevice, capture.file) {

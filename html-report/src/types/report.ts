@@ -155,8 +155,8 @@ export interface HtmlTestLogDetails {
   test_id: string;
   display_name: string;
   attempts: HtmlLogAttempt[];
-  /** `test-parsing` for a device's remote test parsing log (no pool or test); absent for a test's logs. */
-  kind?: 'test-parsing';
+  /** A device log captured outside test execution (no pool or test); absent for a test's logs. */
+  kind?: 'test-parsing' | 'install';
 }
 
 /**

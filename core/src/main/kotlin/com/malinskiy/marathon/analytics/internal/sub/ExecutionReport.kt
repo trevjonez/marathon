@@ -129,6 +129,7 @@ data class DevicePhaseEvent(
     val phase: DevicePhase,
     val label: String,
     val failed: Boolean = false,
+    val logFile: File? = null,
 ) : Event()
 
 data class TestParsingEvent(

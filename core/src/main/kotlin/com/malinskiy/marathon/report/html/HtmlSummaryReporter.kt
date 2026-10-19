@@ -8,6 +8,7 @@ import com.malinskiy.marathon.analytics.internal.sub.TestEvent
 import com.malinskiy.marathon.config.Configuration
 import com.malinskiy.marathon.device.DeviceFeature
 import com.malinskiy.marathon.device.DeviceInfo
+import com.malinskiy.marathon.device.DevicePhase
 import com.malinskiy.marathon.device.DevicePoolId
 import com.malinskiy.marathon.execution.AttachmentType
 import com.malinskiy.marathon.execution.TestResult
@@ -26,7 +27,7 @@ import com.malinskiy.marathon.report.HtmlPoolSummary
 import com.malinskiy.marathon.report.HtmlShortTest
 import com.malinskiy.marathon.report.HtmlTag
 import com.malinskiy.marathon.report.HtmlTestLogDetails
-import com.malinskiy.marathon.report.timeline.testParsingLogHref
+import com.malinskiy.marathon.report.timeline.deviceLogHref
 import com.malinskiy.marathon.report.Reporter
 import com.malinskiy.marathon.report.Status
 import com.malinskiy.marathon.report.timeline.TimelineSummaryProvider
@@ -110,7 +111,7 @@ class HtmlSummaryReporter(
             extraJs = "window.timeline = $timelineJson;",
         )
 
-        renderTestParsingLogs(executionReport, outputDir, ::render)
+        renderDeviceLogs(executionReport, outputDir, ::render)
 
         val poolsDir = File(outputDir, "pools").apply { mkdirs() }
 
@@ -432,50 +433,59 @@ class HtmlSummaryReporter(
         durationPerPool(poolSummaries).maxOrNull() ?: 0L
 
     /**
-     * One log page per device that ran remote test parsing. The device's capture file holds every attempt it made, so
-     * the page shows the whole file and counts as failed if any attempt on it failed.
+     * One log page per device log captured outside test execution: remote test parsing and package installs. A device's
+     * capture file holds every attempt or install it made, so the page shows the whole file and counts as failed if
+     * any of them failed.
      */
-    private fun renderTestParsingLogs(
+    private fun renderDeviceLogs(
         executionReport: ExecutionReport,
         outputDir: File,
         render: (target: File, payloadGlobal: String, payloadJson: String, extraJs: String) -> Unit,
     ) {
+        data class Captured(val serialNumber: String, val logFile: File, val failed: Boolean)
+
         val devices = executionReport.deviceConnectedEvents.associate { it.device.serialNumber to it.device }
-        executionReport.testParsingEvents
-            .filter { it.logFile != null }
-            .groupBy { it.logFile!! }
-            .forEach { (logFile, attempts) ->
-                val serial = attempts.first().serialNumber
-                val device = devices[serial]?.toHtmlDevice() ?: HtmlDevice(
-                    serial = serial.escape(),
-                    modelName = "",
-                    manufacturer = "",
-                    osVersion = "",
-                    osMajor = null,
-                    networkState = "",
-                    features = emptyList(),
-                    isTablet = false,
-                    apiLevel = "",
-                )
-                val details = HtmlTestLogDetails(
-                    poolId = "",
-                    testId = "test-parsing",
-                    displayName = "Test parsing on $serial",
-                    attempts = listOf(
-                        HtmlLogAttempt(
-                            attemptIndex = 0,
-                            final = true,
-                            status = if (attempts.any { it.failed }) Status.Failed else Status.Passed,
-                            deviceId = device.serial,
-                            device = device,
-                            // The page sits in html/test-parsing/, the capture in <output>/test-parsing/
-                            logPath = "../../test-parsing/${logFile.name}",
-                            logBody = readInlineLog(logFile),
-                        )
-                    ),
-                    kind = "test-parsing",
-                )
-                render(File(outputDir, testParsingLogHref(logFile)).apply { parentFile.mkdirs() }, "logs", gson.toJson(details), "")
+        val parsing = executionReport.testParsingEvents.mapNotNull { e -> e.logFile?.let { Captured(e.serialNumber, it, e.failed) } }
+        val installs = executionReport.devicePhaseEvents
+            .filter { it.phase == DevicePhase.INSTALL }
+            .mapNotNull { e -> e.logFile?.let { Captured(e.serialNumber, it, e.failed) } }
+
+        listOf("test-parsing" to "Test parsing on" to parsing, "install" to "Installs on" to installs)
+            .forEach { (kindAndTitle, captured) ->
+                val (kind, title) = kindAndTitle
+                captured.groupBy { it.logFile }.forEach { (logFile, entries) ->
+                    val serial = entries.first().serialNumber
+                    val device = devices[serial]?.toHtmlDevice() ?: HtmlDevice(
+                        serial = serial.escape(),
+                        modelName = "",
+                        manufacturer = "",
+                        osVersion = "",
+                        osMajor = null,
+                        networkState = "",
+                        features = emptyList(),
+                        isTablet = false,
+                        apiLevel = "",
+                    )
+                    val details = HtmlTestLogDetails(
+                        poolId = "",
+                        testId = kind,
+                        displayName = "$title $serial",
+                        attempts = listOf(
+                            HtmlLogAttempt(
+                                attemptIndex = 0,
+                                final = true,
+                                status = if (entries.any { it.failed }) Status.Failed else Status.Passed,
+                                deviceId = device.serial,
+                                device = device,
+                                // The page sits in html/<dir>/, the capture in <output>/<dir>/
+                                logPath = "../../${logFile.parentFile.name}/${logFile.name}",
+                                logBody = readInlineLog(logFile),
+                            )
+                        ),
+                        kind = kind,
+                    )
+                    render(File(outputDir, deviceLogHref(logFile)).apply { parentFile.mkdirs() }, "logs", gson.toJson(details), "")
+                }
             }
     }
 
