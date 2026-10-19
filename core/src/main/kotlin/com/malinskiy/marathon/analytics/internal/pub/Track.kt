@@ -29,8 +29,16 @@ class Track : Tracker {
         delegates.forEach { it.testParsing(serialNumber, startTime, finishTime, logFile, failed) }
     }
 
-    override fun devicePhase(serialNumber: String, phase: DevicePhase, label: String, startTime: Instant, finishTime: Instant, failed: Boolean) {
-        delegates.forEach { it.devicePhase(serialNumber, phase, label, startTime, finishTime, failed) }
+    override fun devicePhase(
+        serialNumber: String,
+        phase: DevicePhase,
+        label: String,
+        startTime: Instant,
+        finishTime: Instant,
+        failed: Boolean,
+        logFile: File?,
+    ) {
+        delegates.forEach { it.devicePhase(serialNumber, phase, label, startTime, finishTime, failed, logFile) }
     }
 
     override fun deviceConnected(poolId: DevicePoolId, device: DeviceInfo) {

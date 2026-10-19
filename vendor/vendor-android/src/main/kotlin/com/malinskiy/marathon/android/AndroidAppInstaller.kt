@@ -10,9 +10,11 @@ import com.malinskiy.marathon.device.DevicePhase
 import com.malinskiy.marathon.exceptions.DeviceSetupException
 import com.malinskiy.marathon.execution.withRetry
 import com.malinskiy.marathon.log.MarathonLogging
+import com.malinskiy.marathon.extension.escape
+import com.malinskiy.marathon.android.adam.log.LogcatCapture
 import java.io.File
 
-class AndroidAppInstaller(configuration: Configuration) {
+class AndroidAppInstaller(private val configuration: Configuration) {
 
     companion object {
         private const val MAX_RETIRES = 3
@@ -85,7 +87,32 @@ class AndroidAppInstaller(configuration: Configuration) {
             listOf<String>(applicationApk.absolutePath)
         }
 
-        device.phase(DevicePhase.INSTALL, "install $appPackage") { withRetry(attempts = MAX_RETIRES, delayTime = 1000) {
+        // Kept so a slow or failed install can be explained: PackageManager, verifier and dex2oat all log during it
+        val logFile = File(configuration.outputDir, "installs/${device.serialNumber.escape()}.log")
+        val capture = LogcatCapture(device, logFile)
+        capture.start("install $appPackage on ${device.serialNumber}")
+        try {
+            installWithRetries(device, appPackage, applicationApk, splitApks, absolutePaths, logFile)
+        } catch (e: DeviceSetupException) {
+            logger.warn {
+                "Installing $appPackage failed on ${device.serialNumber}, device logcat for it is in $logFile\n" +
+                    capture.problems().joinToString("\n").ifEmpty { "(no warnings or errors were logged)" }
+            }
+            throw e
+        } finally {
+            capture.close()
+        }
+    }
+
+    private suspend fun installWithRetries(
+        device: AndroidDevice,
+        appPackage: String,
+        applicationApk: File,
+        splitApks: List<File>,
+        absolutePaths: List<String>,
+        logFile: File,
+    ) {
+        device.phase(DevicePhase.INSTALL, "install $appPackage", logFile) { withRetry(attempts = MAX_RETIRES, delayTime = 1000) {
             try {
                 if (installed(device, appPackage)) {
                     logger.info("Uninstalling $appPackage from ${device.serialNumber}")

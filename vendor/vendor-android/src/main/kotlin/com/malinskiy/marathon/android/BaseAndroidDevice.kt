@@ -41,6 +41,7 @@ import com.malinskiy.marathon.time.Timer
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
+import java.io.File
 import java.time.Instant
 import java.util.UUID
 import kotlin.system.measureTimeMillis
@@ -55,8 +56,8 @@ abstract class BaseAndroidDevice(
     protected val timer: Timer
 ) : AndroidDevice, CoroutineScope {
 
-    override fun recordPhase(phase: DevicePhase, label: String, start: Instant, finish: Instant, failed: Boolean) =
-        track.devicePhase(serialNumber, phase, label, start, finish, failed)
+    override fun recordPhase(phase: DevicePhase, label: String, start: Instant, finish: Instant, failed: Boolean, logFile: File?) =
+        track.devicePhase(serialNumber, phase, label, start, finish, failed, logFile)
 
     override val logger = MarathonLogging.logger(AndroidDevice::class.java.simpleName)
 

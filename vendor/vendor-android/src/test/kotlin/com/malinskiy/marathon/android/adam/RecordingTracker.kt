@@ -16,10 +16,18 @@ class RecordingTracker : Tracker {
     val testParsing = CopyOnWriteArrayList<Span>()
     val phases = CopyOnWriteArrayList<Phase>()
 
-    data class Phase(val phase: DevicePhase, val label: String, val start: Instant, val finish: Instant, val failed: Boolean)
+    data class Phase(val phase: DevicePhase, val label: String, val start: Instant, val finish: Instant, val failed: Boolean, val logFile: File? = null)
 
-    override fun devicePhase(serialNumber: String, phase: DevicePhase, label: String, startTime: Instant, finishTime: Instant, failed: Boolean) {
-        phases.add(Phase(phase, label, startTime, finishTime, failed))
+    override fun devicePhase(
+        serialNumber: String,
+        phase: DevicePhase,
+        label: String,
+        startTime: Instant,
+        finishTime: Instant,
+        failed: Boolean,
+        logFile: File?,
+    ) {
+        phases.add(Phase(phase, label, startTime, finishTime, failed, logFile))
     }
 
     override fun devicePreparing(serialNumber: String, startTime: Instant, finishTime: Instant) {

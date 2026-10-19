@@ -22,8 +22,19 @@ interface Tracker {
      */
     fun testParsing(serialNumber: String, startTime: Instant, finishTime: Instant, logFile: File? = null, failed: Boolean = false) = Unit
 
-    /** One step a device took outside test execution, e.g. installing a package or clearing app data between batches. */
-    fun devicePhase(serialNumber: String, phase: DevicePhase, label: String, startTime: Instant, finishTime: Instant, failed: Boolean) = Unit
+    /**
+     * One step a device took outside test execution, e.g. installing a package or clearing app data between batches.
+     * [logFile] is the device log captured during the step, when one was kept.
+     */
+    fun devicePhase(
+        serialNumber: String,
+        phase: DevicePhase,
+        label: String,
+        startTime: Instant,
+        finishTime: Instant,
+        failed: Boolean,
+        logFile: File? = null,
+    ) = Unit
 
     /**
      * @param final signals if the test execution status is final, i.e. no more retries will happen
