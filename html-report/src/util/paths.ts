@@ -21,6 +21,6 @@ export const paths = {
   fromLogsToIndex: '../../../../index.html',
   fromLogsToPool: (poolId: string) => `../../../${encodeURIComponent(poolId)}.html`,
   fromLogsToTest: (filename: string) => `../${filename}`,
-  /** html/test-parsing/<device>.html */
+  /** Device logs: html/test-parsing/<device>.html, html/installs/<device>.html */
   fromParsingLogToIndex: '../index.html',
 } as const;

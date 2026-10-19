@@ -16,6 +16,8 @@ import com.malinskiy.marathon.device.DeviceFeature
 import com.malinskiy.marathon.device.DeviceInfo
 import com.malinskiy.marathon.device.DevicePhase
 import com.malinskiy.marathon.analytics.internal.sub.DevicePhaseEvent
+import com.malinskiy.marathon.extension.escape
+import com.malinskiy.marathon.analytics.internal.sub.TestParsingEvent
 import com.malinskiy.marathon.device.DevicePoolId
 import com.malinskiy.marathon.device.NetworkState
 import com.malinskiy.marathon.device.OperatingSystem
@@ -106,10 +108,48 @@ class HtmlReportFixtureGenerator {
         writeSyntheticLogs(fileManager, executionReport, androidStyle = configurationName.contains("Android"))
         writeSyntheticScreenshots(fileManager, executionReport)
         val reportWithVideo = attachVideoStubs(fileManager, executionReport)
+        val reportWithDeviceLogs = attachDeviceLogs(outputDir, reportWithVideo, androidStyle = configurationName.contains("Android"))
 
         HtmlSummaryReporter(gson, fileManager, outputDir, configuration, TimelineSummaryProvider())
-            .generate(reportWithVideo)
+            .generate(reportWithDeviceLogs)
     }
+
+    /**
+     * Gives each device's installs a captured log, as the Android installer writes under installs/, and on Android adds a
+     * remote test parsing attempt with its log on the first device, so the preview shows both kinds of device log page.
+     */
+    private fun attachDeviceLogs(outputDir: File, report: ExecutionReport, androidStyle: Boolean): ExecutionReport {
+        val installDir = File(outputDir, "installs").apply { deleteRecursively(); mkdirs() }
+        val phases = report.devicePhaseEvents.map { event ->
+            if (event.phase != DevicePhase.INSTALL) return@map event
+            val log = File(installDir, "${event.serialNumber.escape()}.log")
+            log.appendText(
+                "===== ${event.start} ${event.label} on ${event.serialNumber} =====\n" +
+                    "${logcatTime(event.start)} 1234-1250/system_server I/PackageManager: START INSTALL PACKAGE\n" +
+                    "${logcatTime(event.start)} 1234-1250/system_server I/PackageManager: Integrity check passed\n" +
+                    "${logcatTime(event.finish)} 2345-2345/? I/dex2oat64: dex2oat took 4.212s (12.3s cpu)\n" +
+                    "${logcatTime(event.finish)} 1234-1250/system_server I/PackageManager: installation completed\n"
+            )
+            event.copy(logFile = log)
+        }
+        if (!androidStyle) return report.copy(devicePhaseEvents = phases)
+
+        val first = report.deviceConnectedEvents.first().device
+        val parseStart = report.devicePreparingEvents.minOf { it.finish }
+        val parseLog = File(outputDir, "test-parsing/${first.serialNumber.escape()}.log").apply {
+            parentFile.mkdirs()
+            writeText(
+                "===== $parseStart test parsing on ${first.serialNumber} =====\n" +
+                    "${logcatTime(parseStart)} 3456-3470/com.example.app I/TestRunner: run started: 312 tests\n" +
+                    "${logcatTime(parseStart.plusSeconds(20))} 3456-3470/com.example.app I/TestRunner: run finished: 312 tests, 0 failed, 0 ignored\n"
+            )
+        }
+        val parsing = TestParsingEvent(parseStart, parseStart.plusSeconds(20), first.serialNumber, parseLog, failed = false)
+        return report.copy(devicePhaseEvents = phases, testParsingEvents = report.testParsingEvents + parsing)
+    }
+
+    private fun logcatTime(instant: java.time.Instant): String =
+        java.time.format.DateTimeFormatter.ofPattern("MM-dd HH:mm:ss.SSS").withZone(java.time.ZoneOffset.UTC).format(instant)
 
     private fun writeSyntheticLogs(
         fileManager: FileManager,

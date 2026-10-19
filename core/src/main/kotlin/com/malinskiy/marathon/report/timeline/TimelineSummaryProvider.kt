@@ -52,7 +52,7 @@ class TimelineSummaryProvider {
                 endDate = it.finish.toEpochMilli(),
                 expectedValue = 0.0,
                 variance = 0.0,
-                logHref = it.logFile?.let(::testParsingLogHref),
+                logHref = it.logFile?.let(::deviceLogHref),
                 failed = it.failed,
             )
         }
@@ -66,6 +66,7 @@ class TimelineSummaryProvider {
                 expectedValue = 0.0,
                 variance = 0.0,
                 failed = it.failed,
+                logHref = it.logFile?.let(::deviceLogHref),
                 phase = it.phase.name,
                 betweenTests = it.phase.betweenTests,
             )
@@ -223,8 +224,11 @@ class TimelineSummaryProvider {
     }
 }
 
-/** Where [com.malinskiy.marathon.report.html.HtmlSummaryReporter] renders a test parsing log, relative to the report root. */
-fun testParsingLogHref(logFile: java.io.File): String = "test-parsing/${logFile.nameWithoutExtension}.html"
+/**
+ * Where [com.malinskiy.marathon.report.html.HtmlSummaryReporter] renders a device log (test parsing, installs), relative
+ * to the report root: under the same directory name the capture sits in, e.g. test-parsing/ or installs/.
+ */
+fun deviceLogHref(logFile: java.io.File): String = "${logFile.parentFile.name}/${logFile.nameWithoutExtension}.html"
 
 private val TEST_METRICS = setOf(
     MetricType.PASSED,

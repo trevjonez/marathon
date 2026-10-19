@@ -484,6 +484,24 @@ describe('TimelineChart device phases', () => {
     expect(swatches.some((c) => c.includes('bar-phase-INSTALL'))).toBe(true);
   });
 
+  it('an install with a captured log links to it and keeps its phase colour', () => {
+    const { container } = render(
+      <TimelineChart
+        data={timeline([
+          {
+            serial: 'dev-a',
+            data: [phaseBar('INSTALL', 'install com.example', 0, { logHref: 'installs/dev-a.html', failed: true })],
+          },
+        ])}
+      />,
+    );
+    const [bar] = phaseBars(container);
+    expect(bar!.tagName).toBe('A');
+    expect(bar!.getAttribute('href')).toBe('installs/dev-a.html');
+    expect(bar!.classList.contains('bar-phase-INSTALL')).toBe(true);
+    expect(bar!.classList.contains('bar-failed')).toBe(true);
+  });
+
   it('has no toggle when the run has no between-test steps', () => {
     render(
       <TimelineChart

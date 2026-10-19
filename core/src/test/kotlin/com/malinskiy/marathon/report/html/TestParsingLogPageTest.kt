@@ -4,6 +4,7 @@ import com.google.gson.Gson
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.malinskiy.marathon.analytics.internal.sub.DeviceConnectedEvent
+import com.malinskiy.marathon.analytics.internal.sub.DevicePhaseEvent
 import com.malinskiy.marathon.analytics.internal.sub.ExecutionReport
 import com.malinskiy.marathon.analytics.internal.sub.TestEvent
 import com.malinskiy.marathon.analytics.internal.sub.TestParsingEvent
@@ -11,6 +12,7 @@ import com.malinskiy.marathon.config.AnalyticsConfiguration
 import com.malinskiy.marathon.config.Configuration
 import com.malinskiy.marathon.config.vendor.VendorConfiguration
 import com.malinskiy.marathon.device.DeviceInfo
+import com.malinskiy.marathon.device.DevicePhase
 import com.malinskiy.marathon.device.DevicePoolId
 import com.malinskiy.marathon.device.NetworkState
 import com.malinskiy.marathon.device.OperatingSystem
@@ -48,7 +50,7 @@ class TestParsingLogPageTest {
         writeText(body)
     }
 
-    private fun generate(parsing: List<TestParsingEvent>) {
+    private fun generate(parsing: List<TestParsingEvent>, phases: List<DevicePhaseEvent> = emptyList()) {
         val configuration = Configuration.Builder(name = "parse", outputDir = outputDir).apply {
             vendorConfiguration = VendorConfiguration.StubVendorConfiguration
             analyticsConfiguration = AnalyticsConfiguration.DisabledAnalytics
@@ -64,6 +66,7 @@ class TestParsingLogPageTest {
                 TestEvent(Instant.now(), DevicePoolId("omni"), device, TestResult(test, device, "b", TestStatus.PASSED, 100, 200), true)
             ),
             testParsingEvents = parsing,
+            devicePhaseEvents = phases,
         )
         HtmlSummaryReporter(Gson(), FileManager(0, 255, outputDir), outputDir, configuration).generate(report)
     }
@@ -131,5 +134,40 @@ class TestParsingLogPageTest {
         generate(listOf(TestParsingEvent(Instant.ofEpochMilli(10), Instant.ofEpochMilli(50), other, log)))
         payload(File(outputDir, "html/test-parsing/$other.html"), "logs").getAsJsonArray("attempts").single().asJsonObject
             .getAsJsonObject("device").get("serial").asString shouldBeEqualTo other
+    }
+
+    @Test
+    fun `install logs get a page per device, linked from the install bars`() {
+        val log = File(outputDir, "installs/$safeSerial.log").apply { parentFile.mkdirs(); writeText("===== install com.example =====\n") }
+        fun install(pkg: String, start: Long, failed: Boolean) =
+            DevicePhaseEvent(Instant.ofEpochMilli(start), Instant.ofEpochMilli(start + 5), serial, DevicePhase.INSTALL, "install $pkg", failed, log)
+        generate(
+            emptyList(),
+            listOf(
+                install("com.example", 10, failed = false),
+                install("com.example.test", 20, failed = true),
+                // Between-test steps carry no log
+                DevicePhaseEvent(Instant.ofEpochMilli(30), Instant.ofEpochMilli(31), serial, DevicePhase.BEFORE_RUN, "before run"),
+            ),
+        )
+
+        val page = File(outputDir, "html/installs/$safeSerial.html")
+        val logs = payload(page, "logs")
+        logs.get("kind").asString shouldBeEqualTo "install"
+        logs.get("display_name").asString shouldBeEqualTo "Installs on $serial"
+        val attempt = logs.getAsJsonArray("attempts").single().asJsonObject
+        attempt.get("status").asString shouldBeEqualTo "failed"
+        attempt.get("log_body").asString shouldBeEqualTo log.readText()
+        File(page.parentFile, attempt.get("log_path").asString).canonicalFile shouldBeEqualTo log.canonicalFile
+
+        val phaseBars = payload(File(outputDir, "html/index.html"), "timeline").getAsJsonArray("measures")
+            .flatMap { it.asJsonObject.getAsJsonArray("data") }.map { it.asJsonObject }
+            .filter { it.get("metricType").asString == "DEVICE_PHASE" }
+        phaseBars.map { it.get("testName").asString to it.get("logHref")?.asString } shouldBeEqualTo listOf(
+            "install com.example" to "installs/$safeSerial.html",
+            "install com.example.test" to "installs/$safeSerial.html",
+            "before run" to null,
+        )
+        File(outputDir, "test-parsing").exists() shouldBe false
     }
 }
