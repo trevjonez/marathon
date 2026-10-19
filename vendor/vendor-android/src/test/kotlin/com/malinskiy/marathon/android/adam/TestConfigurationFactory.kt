@@ -5,6 +5,7 @@ import com.malinskiy.marathon.config.vendor.VendorConfiguration
 import com.malinskiy.marathon.config.vendor.android.AllureConfiguration
 import com.malinskiy.marathon.config.vendor.android.FileSyncConfiguration
 import java.io.File
+import java.nio.file.Files
 
 object TestConfigurationFactory {
     fun create(
@@ -17,7 +18,8 @@ object TestConfigurationFactory {
         testApplicationOutput: File? = File(javaClass.classLoader.getResource("apk/app-debug-androidTest.apk").file),
         splitApks: List<File>? = emptyList(),
         extraApplicationsOutput: List<File>? = emptyList(),
-        outputDir: File = File(""),
+        // Installs and parsing write device logs under the output dir; keep them out of the source tree
+        outputDir: File = Files.createTempDirectory("marathon-test").toFile(),
         applicationPmClear: Boolean = false,
         testApplicationPmClear: Boolean = false,
     ): Configuration {

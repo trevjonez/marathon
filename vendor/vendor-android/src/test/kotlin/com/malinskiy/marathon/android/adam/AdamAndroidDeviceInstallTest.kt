@@ -9,6 +9,7 @@ import com.malinskiy.adam.server.stub.dsl.DeviceExpectation
 import com.malinskiy.marathon.analytics.internal.pub.Track
 import com.malinskiy.marathon.device.DevicePhase
 import com.malinskiy.marathon.exceptions.DeviceSetupException
+import com.malinskiy.marathon.extension.escape
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.runBlocking
@@ -56,6 +57,11 @@ class AdamAndroidDeviceInstallTest {
             Triple(DevicePhase.INSTALL, "install com.example", false),
             Triple(DevicePhase.INSTALL, "install com.example.test", false),
         )
+        // Both installs share the device's capture file, one section each
+        val log = File(configuration.outputDir, "installs/${device.serialNumber.escape()}.log")
+        tracker.phases.map { it.logFile } shouldBeEqualTo listOf(log, log)
+        log.readLines().filter { it.startsWith("=====") }.map { it.substringAfter("Z ").substringBefore(" on ") } shouldBeEqualTo
+            listOf("install com.example", "install com.example.test")
     }
 
     @Test
@@ -95,10 +101,11 @@ class AdamAndroidDeviceInstallTest {
             device.setup()
             assertThrows<DeviceSetupException> { device.ensureInstalled(configuration) }
             tracker.devicePreparing.size shouldBeEqualTo 0
-            // One phase for all three attempts, marked failed
+            // One phase for all three attempts, marked failed, still pointing at its log
             tracker.phases.map { Triple(it.phase, it.label, it.failed) } shouldBeEqualTo listOf(
                 Triple(DevicePhase.INSTALL, "install com.example", true),
             )
+            tracker.phases.single().logFile!!.exists() shouldBeEqualTo true
 
             device.ensureInstalled(configuration)
         }
